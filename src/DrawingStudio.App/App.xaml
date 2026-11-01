@@ -129,5 +129,25 @@
         </Style>
 
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+        <!-- live preview of what the Add button will prepare -->
+        <Style x:Key="PreviewPanel" TargetType="Border">
+            <Setter Property="Background" Value="#F3F7F8" />
+            <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="Margin" Value="0,8,0,0" />
+        </Style>
+        <Style x:Key="PreviewText" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="PreviewTitle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource Muted}" />
+            <Setter Property="Margin" Value="0,14,0,4" />
+        </Style>
     </Application.Resources>
 </Application>

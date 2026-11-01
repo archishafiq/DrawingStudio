@@ -57,7 +57,7 @@ namespace DrawingStudio.App.ViewModels
             AnnotViewsView.Filter = o => string.IsNullOrWhiteSpace(AnnotViewFilter) ||
                                          ((Checkable<ViewInfo>)o).Label.IndexOf(AnnotViewFilter, StringComparison.OrdinalIgnoreCase) >= 0;
 
-            AnnotateCommand = new RelayCommand(_ => QueueAnnotation(), _ => CanPrepare());
+            AnnotateCommand = new RelayCommand(_ => Queue(BuildAnnotation()), _ => CanPrepare());
             CheckActiveViewCommand = new RelayCommand(_ =>
             {
                 foreach (var v in AnnotViews) v.IsChecked = v.Item.Id == Model?.ActiveViewId;
@@ -72,10 +72,10 @@ namespace DrawingStudio.App.ViewModels
                 AnnotViews.Add(new Checkable<ViewInfo>(v, v.Name, $"{Pretty(v.ViewType)}  ·  1:{v.Scale}", keep.Contains(v.Id)));
         }
 
-        private void QueueAnnotation()
+        private Prepared BuildAnnotation()
         {
             var views = AnnotViews.Where(v => v.IsChecked).Select(v => v.Item).ToList();
-            if (views.Count == 0) { AddLog("Tick the views to annotate."); return; }
+            if (views.Count == 0) return Fail("Tick the views to annotate.");
 
             var categories = TagCategories.Where(c => c.IsChecked).ToList();
             var request = new AnnotateRequest
@@ -97,9 +97,9 @@ namespace DrawingStudio.App.ViewModels
             if (DimensionGrids) what.Add("grid dimensions" + (OverallDimension ? " + overall" : "") + (BothSides ? ", both ends" : ""));
             if (GridBubbles) what.Add("grid heads both ends");
             if (TagElements && categories.Count > 0) what.Add("tags: " + string.Join(", ", categories.Select(c => c.Label.ToLowerInvariant())));
-            if (what.Count == 0) { AddLog("Choose at least one annotation option."); return; }
+            if (what.Count == 0) return Fail("Choose at least one annotation option.");
 
-            Queue("Annotation", $"Annotate {views.Count} view(s)", Preview(views.Select(v => v.Name), string.Join("  ·  ", what)),
+            return Make("Annotation", $"Annotate {views.Count} view(s)", Preview(views.Select(v => v.Name), string.Join("  ·  ", what)),
                 Commands.Annotate, request);
         }
     }

@@ -30,6 +30,7 @@ namespace DrawingStudio.App.ViewModels
             InitAnnotation();
             InitQa();
             InitChanges();
+            InitPreviews();
 
             RefreshSessionsCommand = new RelayCommand(_ => RefreshSessions());
             ConnectCommand = new AsyncCommand(_ => ConnectAsync(), () => SelectedSession != null && !IsBusy);
@@ -292,6 +293,7 @@ namespace DrawingStudio.App.ViewModels
         public void Shutdown()
         {
             _watcher?.Stop();
+            _previewTimer?.Stop();
             _client.Dispose();
         }
     }

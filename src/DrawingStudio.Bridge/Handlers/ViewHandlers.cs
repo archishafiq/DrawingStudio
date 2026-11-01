@@ -220,7 +220,7 @@ namespace DrawingStudio.Bridge.Handlers
         }
 
         /// <summary>Horizontal axis of an element: location line, column orientation, or longest side of its box.</summary>
-        private static bool TryAxis(HandlerContext ctx, Element e, BoundingBoxXYZ bb, out XYZ a, out XYZ b)
+        internal static bool TryAxis(HandlerContext ctx, Element e, BoundingBoxXYZ bb, out XYZ a, out XYZ b)
         {
             a = b = null;
             if (e.Location is LocationCurve lc && lc.Curve != null)

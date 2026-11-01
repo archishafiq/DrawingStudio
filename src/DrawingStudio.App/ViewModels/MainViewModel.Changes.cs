@@ -83,17 +83,32 @@ namespace DrawingStudio.App.ViewModels
         /// <summary>Index of the Changes tab in MainWindow.xaml.</summary>
         private const int ChangesTabIndex = 4;
 
-        /// <summary>Adds a prepared change. Nothing is sent to Revit until Apply.</summary>
-        private void Queue<TRequest>(string kind, string title, string summary, string command, TRequest request)
+        /// <summary>A change built from the current tab settings: what Add would queue, and what the preview shows.</summary>
+        private sealed class Prepared
         {
+            public string Kind, Title, Summary, Command, Payload, Error;
+            public string PreviewText => Error ?? Title + "\n\n" + Summary;
+        }
+
+        private static Prepared Fail(string error) => new Prepared { Error = error };
+
+        private static Prepared Make<TRequest>(string kind, string title, string summary, string command, TRequest request) =>
+            new Prepared { Kind = kind, Title = title, Summary = summary, Command = command, Payload = Json.Serialize(request) };
+
+        /// <summary>Adds a prepared change. Nothing is sent to Revit until Apply.</summary>
+        private bool Queue(Prepared p)
+        {
+            if (p == null) return false;
+            if (p.Error != null) { AddLog(p.Error); return false; }
+
             var item = new ChangeItem(new PendingChange
             {
                 Id = Guid.NewGuid().ToString("N"),
-                Kind = kind,
-                Title = title,
-                Summary = summary,
-                Command = command,
-                Payload = Json.Serialize(request),
+                Kind = p.Kind,
+                Title = p.Title,
+                Summary = p.Summary,
+                Command = p.Command,
+                Payload = p.Payload,
                 Document = Model?.DocumentTitle,
                 Included = true,
                 CreatedLocal = DateTime.Now.ToString("dd MMM HH:mm")
@@ -101,7 +116,8 @@ namespace DrawingStudio.App.ViewModels
             item.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(ChangeItem.Included)) ChangesChanged(); };
             Changes.Add(item);
             ChangesChanged();
-            AddLog($"Prepared: {title}. Review it on the Changes tab, then Apply to Revit.");
+            AddLog($"Prepared: {p.Title}. Review it on the Changes tab, then Apply to Revit.");
+            return true;
         }
 
         private void Move(ChangeItem item, int delta)

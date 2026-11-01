@@ -17,6 +17,11 @@ namespace DrawingStudio.Shared
         public long Id { get; set; }
         public string Name { get; set; }
         public bool IsLinear { get; set; }
+        /// <summary>Plan coordinates of the grid line ends, mm.</summary>
+        public double X1 { get; set; }
+        public double Y1 { get; set; }
+        public double X2 { get; set; }
+        public double Y2 { get; set; }
     }
 
     public class ViewTemplateInfo
@@ -37,6 +42,9 @@ namespace DrawingStudio.Shared
         public bool IsPlaced { get; set; }
         public string SheetNumber { get; set; }
         public bool HasTemplate { get; set; }
+        /// <summary>Size of the view when placed on a sheet, mm (0 if unknown).</summary>
+        public double PaperWidthMm { get; set; }
+        public double PaperHeightMm { get; set; }
     }
 
     public class SheetInfo
@@ -45,7 +53,23 @@ namespace DrawingStudio.Shared
         public string Number { get; set; }
         public string Name { get; set; }
         public int ViewCount { get; set; }
+        /// <summary>Title block outline, mm (0 if the sheet has none).</summary>
+        public double WidthMm { get; set; }
+        public double HeightMm { get; set; }
+        public long TitleBlockTypeId { get; set; }
+        public List<SheetViewport> Viewports { get; set; }
         public override string ToString() => Number + " - " + Name;
+    }
+
+    /// <summary>A viewport already on a sheet; centre relative to the title block's lower-left corner, mm.</summary>
+    public class SheetViewport
+    {
+        public long ViewId { get; set; }
+        public string Name { get; set; }
+        public double CenterX { get; set; }
+        public double CenterY { get; set; }
+        public double Width { get; set; }
+        public double Height { get; set; }
     }
 
     public class TitleBlockInfo
@@ -53,6 +77,9 @@ namespace DrawingStudio.Shared
         public long Id { get; set; }
         public string Family { get; set; }
         public string Type { get; set; }
+        /// <summary>Paper size, mm (0 if unknown).</summary>
+        public double WidthMm { get; set; }
+        public double HeightMm { get; set; }
         public override string ToString() => Family + " : " + Type;
     }
 
@@ -240,6 +267,19 @@ namespace DrawingStudio.Shared
     public class QaResult
     {
         public List<QaIssue> Issues { get; set; }
+    }
+
+    /// <summary>An element selected in Revit, with its plan axis for previews (mm).</summary>
+    public class SelectedElement
+    {
+        public long Id { get; set; }
+        public string Name { get; set; }
+        public double X1 { get; set; }
+        public double Y1 { get; set; }
+        public double X2 { get; set; }
+        public double Y2 { get; set; }
+        /// <summary>Half the element's width across its axis, mm.</summary>
+        public double HalfWidthMm { get; set; }
     }
 
     public class ShowElementsRequest

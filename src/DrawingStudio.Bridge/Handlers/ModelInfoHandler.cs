@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Autodesk.Revit.DB;
@@ -21,6 +22,7 @@ namespace DrawingStudio.Bridge.Handlers
                     placedOn[id] = sheet.SheetNumber;
 
             var allViews = new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().ToList();
+            var sheetInfos = sheets.Select(s => SheetOf(doc, s)).ToList();
 
             return new ModelInfo
             {
@@ -39,7 +41,7 @@ namespace DrawingStudio.Bridge.Handlers
                     }).ToList(),
 
                 Grids = new FilteredElementCollector(doc).OfClass(typeof(Grid)).Cast<Grid>()
-                    .Select(g => new GridInfo { Id = Ids.Of(g.Id), Name = g.Name, IsLinear = g.Curve is Line })
+                    .Select(GridOf)
                     .NaturalOrder(g => g.Name).ToList(),
 
                 Views = allViews.Where(RevitUtil.IsDrawingView)
@@ -52,7 +54,9 @@ namespace DrawingStudio.Bridge.Handlers
                         LevelName = v.GenLevel?.Name,
                         IsPlaced = placedOn.ContainsKey(v.Id),
                         SheetNumber = placedOn.TryGetValue(v.Id, out var n) ? n : null,
-                        HasTemplate = v.ViewTemplateId != ElementId.InvalidElementId
+                        HasTemplate = v.ViewTemplateId != ElementId.InvalidElementId,
+                        PaperWidthMm = PaperSize(v).w,
+                        PaperHeightMm = PaperSize(v).h
                     })
                     .OrderBy(v => v.ViewType).ThenBy(v => Naming.NaturalKey(v.Name)).ToList(),
 
@@ -60,36 +64,124 @@ namespace DrawingStudio.Bridge.Handlers
                     .Select(v => new ViewTemplateInfo { Id = Ids.Of(v.Id), Name = v.Name, ViewType = v.ViewType.ToString() })
                     .OrderBy(t => t.Name).ToList(),
 
-                Sheets = sheets
-                    .Select(s => new SheetInfo
-                    {
-                        Id = Ids.Of(s.Id),
-                        Number = s.SheetNumber,
-                        Name = s.Name,
-                        ViewCount = s.GetAllPlacedViews().Count
-                    })
-                    .NaturalOrder(s => s.Number).ToList(),
+                Sheets = sheetInfos.NaturalOrder(s => s.Number).ToList(),
 
                 TitleBlocks = new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_TitleBlocks)
                     .WhereElementIsElementType().OfType<FamilySymbol>()
-                    .Select(f => new TitleBlockInfo { Id = Ids.Of(f.Id), Family = f.FamilyName, Type = f.Name })
+                    .Select(f =>
+                    {
+                        var t = new TitleBlockInfo { Id = Ids.Of(f.Id), Family = f.FamilyName, Type = f.Name };
+                        // real size from a sheet that uses this title block, else from the A-size in its name
+                        var used = sheetInfos.FirstOrDefault(si => si.TitleBlockTypeId == t.Id && si.WidthMm > 0);
+                        var iso = SheetLayout.IsoSizeFromName(f.FamilyName + " " + f.Name);
+                        t.WidthMm = used?.WidthMm ?? iso?.w ?? 0;
+                        t.HeightMm = used?.HeightMm ?? iso?.h ?? 0;
+                        return t;
+                    })
                     .OrderBy(t => t.Family).ThenBy(t => t.Type).ToList(),
 
                 SelectedIds = ctx.UiDoc.Selection.GetElementIds().Select(Ids.Of).ToList()
             };
         }
 
-        /// <summary>Elements currently selected in Revit, with a readable label each.</summary>
-        public static List<CreatedItem> Selection(HandlerContext ctx) =>
-            ctx.UiDoc.Selection.GetElementIds()
-                .Select(id => ctx.Doc.GetElement(id))
-                .Where(e => e != null && !(e is View))
-                .Select(e => new CreatedItem
+        /// <summary>Elements currently selected in Revit, with their plan axis for the preview.</summary>
+        public static List<SelectedElement> Selection(HandlerContext ctx)
+        {
+            var list = new List<SelectedElement>();
+            foreach (var id in ctx.UiDoc.Selection.GetElementIds())
+            {
+                var e = ctx.Doc.GetElement(id);
+                var bb = e?.get_BoundingBox(null);
+                if (bb == null || e is View) continue;
+                if (!ViewHandlers.TryAxis(ctx, e, bb, out var a, out var b)) continue;
+
+                var d = new XYZ(b.X - a.X, b.Y - a.Y, 0);
+                double half = 0;
+                if (d.GetLength() > 1e-6)
+                {
+                    var n = new XYZ(-d.Y, d.X, 0).Normalize();
+                    var mid = (a + b) * 0.5;
+                    foreach (var x in new[] { bb.Min.X, bb.Max.X })
+                        foreach (var y in new[] { bb.Min.Y, bb.Max.Y })
+                            half = Math.Max(half, Math.Abs((x - mid.X) * n.X + (y - mid.Y) * n.Y));
+                }
+
+                list.Add(new SelectedElement
                 {
                     Id = Ids.Of(e.Id),
-                    Name = (e.Category?.Name ?? e.GetType().Name) + " " + RevitUtil.MarkOrId(e)
-                })
-                .ToList();
+                    Name = (e.Category?.Name ?? e.GetType().Name) + " " + RevitUtil.MarkOrId(e),
+                    X1 = Mm.FromFt(a.X), Y1 = Mm.FromFt(a.Y),
+                    X2 = Mm.FromFt(b.X), Y2 = Mm.FromFt(b.Y),
+                    HalfWidthMm = Mm.FromFt(half)
+                });
+            }
+            return list;
+        }
+
+        private static GridInfo GridOf(Grid g)
+        {
+            var info = new GridInfo { Id = Ids.Of(g.Id), Name = g.Name, IsLinear = g.Curve is Line };
+            if (g.Curve != null)
+            {
+                var p0 = g.Curve.GetEndPoint(0);
+                var p1 = g.Curve.GetEndPoint(1);
+                info.X1 = Mm.FromFt(p0.X); info.Y1 = Mm.FromFt(p0.Y);
+                info.X2 = Mm.FromFt(p1.X); info.Y2 = Mm.FromFt(p1.Y);
+            }
+            return info;
+        }
+
+        /// <summary>Paper size of a view on a sheet (crop region or extents at its scale), mm.</summary>
+        private static (double w, double h) PaperSize(View v)
+        {
+            try
+            {
+                var o = v.Outline;
+                if (o == null) return (0, 0);
+                return (Mm.FromFt(o.Max.U - o.Min.U), Mm.FromFt(o.Max.V - o.Min.V));
+            }
+            catch
+            {
+                return (0, 0);
+            }
+        }
+
+        private static SheetInfo SheetOf(Document doc, ViewSheet s)
+        {
+            var info = new SheetInfo
+            {
+                Id = Ids.Of(s.Id),
+                Number = s.SheetNumber,
+                Name = s.Name,
+                ViewCount = s.GetAllPlacedViews().Count,
+                Viewports = new List<SheetViewport>()
+            };
+
+            var tb = RevitUtil.TitleBlockOn(doc, s);
+            var bb = tb?.get_BoundingBox(s);
+            var origin = bb?.Min ?? XYZ.Zero;
+            if (bb != null)
+            {
+                info.WidthMm = Mm.FromFt(bb.Max.X - bb.Min.X);
+                info.HeightMm = Mm.FromFt(bb.Max.Y - bb.Min.Y);
+                info.TitleBlockTypeId = Ids.Of(tb.GetTypeId());
+            }
+
+            foreach (var vp in s.GetAllViewports().Select(id => doc.GetElement(id)).OfType<Viewport>())
+            {
+                var o = vp.GetBoxOutline();
+                info.Viewports.Add(new SheetViewport
+                {
+                    ViewId = Ids.Of(vp.ViewId),
+                    Name = doc.GetElement(vp.ViewId)?.Name,
+                    CenterX = Mm.FromFt((o.MinimumPoint.X + o.MaximumPoint.X) / 2 - origin.X),
+                    CenterY = Mm.FromFt((o.MinimumPoint.Y + o.MaximumPoint.Y) / 2 - origin.Y),
+                    Width = Mm.FromFt(o.MaximumPoint.X - o.MinimumPoint.X),
+                    Height = Mm.FromFt(o.MaximumPoint.Y - o.MinimumPoint.Y)
+                });
+            }
+            return info;
+        }
 
         public static bool ShowElements(HandlerContext ctx, ShowElementsRequest request)
         {

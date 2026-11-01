@@ -164,27 +164,19 @@ namespace DrawingStudio.Bridge.Handlers
 
             doc.Regenerate();
             double gap = Mm.ToFt(s.GapMm);
-            double x = area.MinX, top = area.MaxY, rowHeight = 0;
-
-            foreach (var vp in viewports)
+            var sizes = viewports.Select(vp =>
             {
-                var outline = vp.GetBoxOutline();
-                double w = outline.MaximumPoint.X - outline.MinimumPoint.X;
-                double h = outline.MaximumPoint.Y - outline.MinimumPoint.Y;
+                var o = vp.GetBoxOutline();
+                return (o.MaximumPoint.X - o.MinimumPoint.X, o.MaximumPoint.Y - o.MinimumPoint.Y);
+            }).ToList();
 
-                if (x > area.MinX + 1e-6 && x + w > area.MaxX)
-                {
-                    top -= rowHeight + gap;
-                    x = area.MinX;
-                    rowHeight = 0;
-                }
-
-                vp.SetBoxCenter(new XYZ(x + w / 2, top - h / 2, 0));
-                if (w > area.MaxX - area.MinX || top - h < area.MinY)
-                    ctx.Warn($"{sheet.SheetNumber}: '{doc.GetElement(vp.ViewId)?.Name}' does not fit the drawing area. Check its scale or crop.");
-
-                x += w + gap;
-                rowHeight = Math.Max(rowHeight, h);
+            // Same packing the app uses for its preview.
+            var placed = SheetLayout.Pack(area, sizes, gap);
+            for (int i = 0; i < viewports.Count; i++)
+            {
+                viewports[i].SetBoxCenter(new XYZ(placed[i].CenterX, placed[i].CenterY, 0));
+                if (!placed[i].Fits)
+                    ctx.Warn($"{sheet.SheetNumber}: '{doc.GetElement(viewports[i].ViewId)?.Name}' does not fit the drawing area. Check its scale or crop.");
             }
 
             if (s.RenumberDetails) RenumberDetails(doc, sheet, 1);
@@ -211,29 +203,13 @@ namespace DrawingStudio.Bridge.Handlers
             return ordered.Count;
         }
 
-        private sealed class Rect
+        private static LayoutRect DrawingArea(Document doc, ViewSheet sheet, LayoutSettings s)
         {
-            public double MinX, MinY, MaxX, MaxY;
-        }
-
-        private static Rect DrawingArea(Document doc, ViewSheet sheet, LayoutSettings s)
-        {
-            XYZ min, max;
             var bb = RevitUtil.TitleBlockOn(doc, sheet)?.get_BoundingBox(sheet);
-            if (bb != null) { min = bb.Min; max = bb.Max; }
-            else { min = XYZ.Zero; max = new XYZ(Mm.ToFt(841), Mm.ToFt(594), 0); } // A1 landscape
-
-            double left = min.X + Mm.ToFt(s.MarginLeftMm);
-            double right = max.X - Mm.ToFt(s.MarginOtherMm);
-            double bottom = min.Y + Mm.ToFt(s.MarginOtherMm);
-            double topY = max.Y - Mm.ToFt(s.MarginOtherMm);
-
-            if (string.Equals(s.TitleStripSide, "Bottom", StringComparison.OrdinalIgnoreCase))
-                bottom += Mm.ToFt(s.TitleStripMm);
-            else
-                right -= Mm.ToFt(s.TitleStripMm);
-
-            return new Rect { MinX = left, MinY = bottom, MaxX = right, MaxY = topY };
+            var outline = bb != null
+                ? new LayoutRect { MinX = bb.Min.X, MinY = bb.Min.Y, MaxX = bb.Max.X, MaxY = bb.Max.Y }
+                : new LayoutRect { MinX = 0, MinY = 0, MaxX = Mm.ToFt(841), MaxY = Mm.ToFt(594) }; // A1 landscape
+            return SheetLayout.DrawingArea(outline, s, 1 / Mm.PerFoot);
         }
     }
 }

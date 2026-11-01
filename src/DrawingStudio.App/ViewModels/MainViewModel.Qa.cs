@@ -46,8 +46,8 @@ namespace DrawingStudio.App.ViewModels
             RunQaCommand = new AsyncCommand(_ => RunAsync("Checking drawings", RunQaAsync), CanRun);
             ShowIssueCommand = new AsyncCommand(_ => RunAsync("Showing in Revit", ShowIssueAsync),
                 () => CanRun() && SelectedIssue != null && SelectedIssue.ElementId > 0);
-            RenumberSheetsCommand = new RelayCommand(_ => QueueRenumberSheets(), _ => CanPrepare());
-            RenumberDetailsCommand = new RelayCommand(_ => QueueRenumberDetails(), _ => CanPrepare());
+            RenumberSheetsCommand = new RelayCommand(_ => Queue(BuildRenumberSheets()), _ => CanPrepare());
+            RenumberDetailsCommand = new RelayCommand(_ => Queue(BuildRenumberDetails()), _ => CanPrepare());
         }
 
         private void LoadQaTab(ModelInfo model)
@@ -84,10 +84,10 @@ namespace DrawingStudio.App.ViewModels
         private Task ShowIssueAsync() =>
             Send<ShowElementsRequest, bool>(Commands.ShowElements, new ShowElementsRequest { Ids = new List<long> { SelectedIssue.ElementId } });
 
-        private void QueueRenumberSheets()
+        private Prepared BuildRenumberSheets()
         {
             var selected = RenumberSheets.Where(s => s.IsChecked).Select(s => s.Item).ToList();
-            if (selected.Count == 0) { AddLog("Tick the sheets to renumber."); return; }
+            if (selected.Count == 0) return Fail("Tick the sheets to renumber.");
 
             // Numbers held by other sheets, or reserved by prepared changes, stay taken.
             var selectedIds = new HashSet<long>(selected.Select(s => s.Id));
@@ -105,17 +105,17 @@ namespace DrawingStudio.App.ViewModels
                 assignments.Add(new IdValue { Id = sheet.Id, Value = number });
                 if (!string.Equals(sheet.Number, number, StringComparison.OrdinalIgnoreCase)) changes.Add($"{sheet.Number}  →  {number}");
             }
-            if (changes.Count == 0) { AddLog("Sheet numbers already follow the standard sequence."); return; }
+            if (changes.Count == 0) return Fail("The ticked sheets already follow the standard sequence.");
 
-            Queue("Numbering", $"Renumber {changes.Count} sheet(s)", Preview(changes), Commands.RenumberSheets,
+            return Make("Numbering", $"Renumber {changes.Count} sheet(s)", Preview(changes), Commands.RenumberSheets,
                 new RenumberSheetsRequest { Assignments = assignments });
         }
 
-        private void QueueRenumberDetails()
+        private Prepared BuildRenumberDetails()
         {
             var sheets = RenumberSheets.Where(s => s.IsChecked).Select(s => s.Item).ToList();
-            if (sheets.Count == 0) { AddLog("Tick the sheets whose detail numbers should be reset."); return; }
-            Queue("Numbering", $"Renumber details on {sheets.Count} sheet(s) from {DetailStart}",
+            if (sheets.Count == 0) return Fail("Tick the sheets whose detail numbers should be reset.");
+            return Make("Numbering", $"Renumber details on {sheets.Count} sheet(s) from {DetailStart}",
                 Preview(sheets.Select(s => s.ToString()), "Reading order: top row first, left to right"),
                 Commands.RenumberViewports, new RenumberViewportsRequest { SheetIds = sheets.Select(s => s.Id).ToList(), Start = DetailStart });
         }
