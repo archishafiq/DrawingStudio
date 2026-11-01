@@ -24,7 +24,7 @@ namespace DrawingStudio.Bridge
             {
                 var handler = new BridgeEventHandler();
                 var externalEvent = ExternalEvent.Create(handler);
-                var queue = new CommandQueue(externalEvent);
+                var queue = new CommandQueue(externalEvent, MainWindow(application));
                 handler.Queue = queue;
 
                 _pid = Process.GetCurrentProcess().Id;
@@ -48,6 +48,12 @@ namespace DrawingStudio.Bridge
             try { _server?.Stop(); } catch { /* shutting down */ }
             try { File.Delete(SessionPaths.SessionFile(_pid)); } catch { /* ignore */ }
             return Result.Succeeded;
+        }
+
+        private static IntPtr MainWindow(UIControlledApplication application)
+        {
+            try { return application.MainWindowHandle; }
+            catch { return Process.GetCurrentProcess().MainWindowHandle; }
         }
 
         private void RegisterSession(string pipeName, string revitVersion)

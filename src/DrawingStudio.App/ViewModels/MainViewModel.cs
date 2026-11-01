@@ -196,6 +196,7 @@ namespace DrawingStudio.App.ViewModels
         }
 
         private bool _modelIsLive;
+        private int _runNumber;
         private string _lastLogged;
 
         private async Task RefreshModelAsync()
@@ -262,6 +263,13 @@ namespace DrawingStudio.App.ViewModels
             if (IsBusy) return;
             IsBusy = true;
             Status = label + "…";
+            int run = ++_runNumber;
+            // If Revit has not answered after a few seconds, say why it may be waiting.
+            _ = Task.Delay(6000).ContinueWith(_ =>
+            {
+                if (IsBusy && run == _runNumber)
+                    Status = label + "… Revit has not answered yet. If a dialog is open in Revit (for example “Always Load”), answer it; a very large model can take a minute.";
+            }, TaskScheduler.FromCurrentSynchronizationContext());
             try
             {
                 await work();

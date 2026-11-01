@@ -31,13 +31,33 @@ namespace DrawingStudio.Bridge
         private readonly ConcurrentQueue<PendingCommand> _queue = new ConcurrentQueue<PendingCommand>();
         private readonly ExternalEvent _event;
 
-        public CommandQueue(ExternalEvent externalEvent) { _event = externalEvent; }
+        private readonly IntPtr _revitWindow;
+
+        public CommandQueue(ExternalEvent externalEvent, IntPtr revitWindow)
+        {
+            _event = externalEvent;
+            _revitWindow = revitWindow;
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+        /// <summary>
+        /// Revit runs external events when its message loop goes idle. A Revit window sitting in the
+        /// background with no mouse or keyboard activity may not get there for a long time, so post a
+        /// harmless message (WM_NULL) to wake it up.
+        /// </summary>
+        private void Wake()
+        {
+            if (_revitWindow != IntPtr.Zero) PostMessage(_revitWindow, 0x0000, IntPtr.Zero, IntPtr.Zero);
+        }
 
         public Task<BridgeResponse> Enqueue(BridgeRequest request)
         {
             var pending = new PendingCommand { Request = request };
             _queue.Enqueue(pending);
             _event.Raise(); // Accepted, Pending or Denied: the queue is drained on the next Execute either way
+            Wake();
             return pending.Completion.Task;
         }
 
@@ -45,7 +65,12 @@ namespace DrawingStudio.Bridge
 
         public bool HasWork => !_queue.IsEmpty;
 
-        public void Kick() { if (HasWork) _event.Raise(); }
+        public void Kick()
+        {
+            if (!HasWork) return;
+            _event.Raise();
+            Wake();
+        }
     }
 
     internal sealed class BridgeEventHandler : IExternalEventHandler
@@ -153,7 +178,7 @@ namespace DrawingStudio.Bridge
                 var started = DateTime.UtcNow;
                 var task = _queue.Enqueue(request);
                 // If Revit was busy when we raised the event, nudge it until it runs.
-                while (!task.Wait(TimeSpan.FromSeconds(2)))
+                while (!task.Wait(TimeSpan.FromMilliseconds(400)))
                 {
                     _queue.Kick();
                     if (!_running) return BridgeResponse.Fail(request.Id, "Revit is shutting down.");

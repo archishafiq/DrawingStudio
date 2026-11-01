@@ -23,6 +23,7 @@ namespace DrawingStudio.Bridge.Handlers
 
             var allViews = new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().ToList();
             var sheetInfos = sheets.Select(s => SheetOf(doc, s)).ToList();
+            var sizes = allViews.Where(RevitUtil.IsDrawingView).ToDictionary(v => v.Id, PaperSize);
 
             return new ModelInfo
             {
@@ -55,8 +56,8 @@ namespace DrawingStudio.Bridge.Handlers
                         IsPlaced = placedOn.ContainsKey(v.Id),
                         SheetNumber = placedOn.TryGetValue(v.Id, out var n) ? n : null,
                         HasTemplate = v.ViewTemplateId != ElementId.InvalidElementId,
-                        PaperWidthMm = PaperSize(v).w,
-                        PaperHeightMm = PaperSize(v).h
+                        PaperWidthMm = sizes[v.Id].w,
+                        PaperHeightMm = sizes[v.Id].h
                     })
                     .OrderBy(v => v.ViewType).ThenBy(v => Naming.NaturalKey(v.Name)).ToList(),
 
@@ -131,14 +132,19 @@ namespace DrawingStudio.Bridge.Handlers
             return info;
         }
 
-        /// <summary>Paper size of a view on a sheet (crop region or extents at its scale), mm.</summary>
+        /// <summary>
+        /// Paper size of a view on a sheet, mm: its crop region divided by the scale. Reading the crop
+        /// box is instant; View.Outline would make Revit compute every view's extents.
+        /// </summary>
         private static (double w, double h) PaperSize(View v)
         {
             try
             {
-                var o = v.Outline;
-                if (o == null) return (0, 0);
-                return (Mm.FromFt(o.Max.U - o.Min.U), Mm.FromFt(o.Max.V - o.Min.V));
+                if (v.ViewType == ViewType.ThreeD || v.ViewType == ViewType.DraftingView || v.ViewType == ViewType.Legend) return (0, 0);
+                var cb = v.CropBox;
+                int scale = v.Scale;
+                if (cb == null || scale <= 0) return (0, 0);
+                return (Mm.FromFt((cb.Max.X - cb.Min.X) / scale), Mm.FromFt((cb.Max.Y - cb.Min.Y) / scale));
             }
             catch
             {
