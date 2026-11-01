@@ -329,4 +329,58 @@ namespace DrawingStudio.Shared
     {
         public List<PendingChange> Items { get; set; }
     }
+
+    // ---------------------------------------------------------------- model viewer
+
+    public class RenderViewRequest
+    {
+        public long ViewId { get; set; }
+        /// <summary>Longest side of the picture in pixels.</summary>
+        public int PixelSize { get; set; }
+    }
+
+    public class RenderViewResult
+    {
+        public string FilePath { get; set; }
+        public string ViewName { get; set; }
+    }
+
+    public class Model3DRequest
+    {
+        /// <summary>3D view whose visibility is used; 0 = default {3D} view, or the whole model.</summary>
+        public long ViewId { get; set; }
+        /// <summary>Coarse | Medium | Fine</summary>
+        public string DetailLevel { get; set; }
+        public int MaxTriangles { get; set; }
+    }
+
+    public class Model3DCategory
+    {
+        public string Name { get; set; }
+        public byte R { get; set; }
+        public byte G { get; set; }
+        public byte B { get; set; }
+        public byte A { get; set; }
+        public int Triangles { get; set; }
+    }
+
+    /// <summary>
+    /// Geometry is written to a binary file next to the Revit session (same PC):
+    /// "DSM1", int categoryCount, then per category: string name, byte r,g,b,a, int floatCount, float[] xyz (metres).
+    /// </summary>
+    public class Model3DResult
+    {
+        public string FilePath { get; set; }
+        public string ViewName { get; set; }
+        public List<Model3DCategory> Categories { get; set; }
+        public int Elements { get; set; }
+        public int Triangles { get; set; }
+        public bool Truncated { get; set; }
+    }
+
+    public class OpenModelRequest
+    {
+        public string Path { get; set; }
+        public bool Detach { get; set; }
+    }
 }

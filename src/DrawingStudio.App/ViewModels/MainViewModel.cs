@@ -31,6 +31,7 @@ namespace DrawingStudio.App.ViewModels
             InitQa();
             InitChanges();
             InitPreviews();
+            InitModelTab();
 
             RefreshSessionsCommand = new RelayCommand(_ => RefreshSessions());
             ConnectCommand = new AsyncCommand(_ => ConnectAsync(), () => SelectedSession != null && !IsBusy);
@@ -184,12 +185,20 @@ namespace DrawingStudio.App.ViewModels
 
         private void ShowModel(ModelInfo model)
         {
+            if (Model != null && !string.Equals(Model.DocumentTitle, model.DocumentTitle, StringComparison.OrdinalIgnoreCase))
+            {
+                // another model: its pictures and 3D come from its own cache folder
+                _model3DFile = null;
+                OnPropertyChanged(nameof(Model3DFile));
+                _renderedThisSession.Clear();
+            }
             Model = model;
             OnPropertyChanged(nameof(Model));
             LoadViewsTab(model);
             LoadSheetsTab(model);
             LoadAnnotationTab(model);
             LoadQaTab(model);
+            LoadModelTab(model);
             CommandManager.InvalidateRequerySuggested();
         }
 

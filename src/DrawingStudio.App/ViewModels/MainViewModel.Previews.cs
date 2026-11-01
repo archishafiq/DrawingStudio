@@ -41,21 +41,21 @@ namespace DrawingStudio.App.ViewModels
             {
                 switch (SelectedTab)
                 {
-                    case 0:
+                    case 1:
                         PlansPreview = BuildPlans().PreviewText;
                         SectionsPreview = BuildSections().PreviewText;
                         PlanDiagram = Keep(PlanDiagram, BuildPlanDiagram());
                         LevelsDiagram = Keep(LevelsDiagram, BuildLevelsDiagram());
                         break;
-                    case 1:
+                    case 2:
                         SheetsPreview = PlannedSheets.Count == 0 ? "" : BuildSheets().PreviewText;
                         PlacePreview = TargetSheet == null ? "" : BuildPlace(false).PreviewText;
                         SheetDiagram = Keep(SheetDiagram, BuildSheetDiagram());
                         break;
-                    case 2:
+                    case 3:
                         AnnotationPreview = BuildAnnotation().PreviewText;
                         break;
-                    case 3:
+                    case 4:
                         RenumberPreview = BuildRenumberSheets().PreviewText;
                         DetailsPreview = BuildRenumberDetails().PreviewText;
                         break;

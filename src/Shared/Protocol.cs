@@ -20,6 +20,9 @@ namespace DrawingStudio.Shared
         public const string ShowElements = "showElements";
         public const string Batch = "batch";
         public const string Selection = "selection";
+        public const string RenderView = "renderView";
+        public const string Model3D = "model3d";
+        public const string OpenModel = "openModel";
     }
 
     /// <summary>One line of JSON sent from the app to Revit.</summary>

@@ -13,6 +13,20 @@ namespace DrawingStudio.Bridge
     {
         public static BridgeResponse Handle(UIApplication app, BridgeRequest request)
         {
+            // Opening a model works even when no project is open yet.
+            if (request.Command == Commands.OpenModel)
+            {
+                try
+                {
+                    var title = ModelViewHandler.OpenModel(app, Json.Deserialize<OpenModelRequest>(request.Payload));
+                    return BridgeResponse.Success(request.Id, Json.Serialize(title ?? ""));
+                }
+                catch (Exception ex)
+                {
+                    return BridgeResponse.Fail(request.Id, "Could not open the model: " + ex.Message);
+                }
+            }
+
             var uiDoc = app.ActiveUIDocument;
             if (uiDoc == null)
                 return BridgeResponse.Fail(request.Id, "No Revit project is open. Open a project and try again.");
@@ -55,6 +69,10 @@ namespace DrawingStudio.Bridge
                     return Json.Serialize(AnnotationHandler.Run(ctx, Json.Deserialize<AnnotateRequest>(request.Payload)));
                 case Commands.Qa:
                     return Json.Serialize(QaHandler.Run(ctx, Json.Deserialize<QaRequest>(request.Payload)));
+                case Commands.RenderView:
+                    return Json.Serialize(ModelViewHandler.RenderView(ctx, Json.Deserialize<RenderViewRequest>(request.Payload)));
+                case Commands.Model3D:
+                    return Json.Serialize(ModelViewHandler.ExportModel(ctx, Json.Deserialize<Model3DRequest>(request.Payload)));
                 case Commands.ShowElements:
                     return Json.Serialize(ModelInfoHandler.ShowElements(ctx, Json.Deserialize<ShowElementsRequest>(request.Payload)));
                 default:

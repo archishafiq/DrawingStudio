@@ -65,6 +65,18 @@ Build details: the bridge is one project built per version with `-p:RevitVersion
 Revit API references come from the `Nice3point.Revit.Api.*` NuGet packages, so Revit
 itself is not needed to compile.
 
+## Model tab: see the Revit model in the app
+
+- **Project browser** with sheets, structural/floor/ceiling plans, sections, elevations, details, 3D and drafting views.
+- **Picture**: click any view or sheet and Revit renders it (its own graphics, line weights and annotation).
+  Wheel to zoom, drag to pan, double-click to fit. Choose draft, standard or sharp quality.
+- **3D model**: *Load 3D from Revit* exports the real geometry (using the selected 3D view's visibility, or {3D})
+  into an orbit viewer: drag to orbit, right-drag to pan, wheel to zoom, Iso/Top/Front/Right, and switch
+  categories on and off.
+- **Open model…** opens an .rvt in Revit (starting Revit if needed; optional detach from central) and loads it here.
+- **Open in Revit** jumps Revit to the view you are looking at.
+- Pictures and the 3D model are cached in `DrawingStudio-Data`, so the last model can be browsed with Revit closed.
+
 ## Prepare first, apply later
 
 Nothing in the tabs changes Revit directly. Every button **adds a change** to the **Changes** tab, with a preview

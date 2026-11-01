@@ -39,6 +39,127 @@
         <!-- ============================================================ tabs -->
         <TabControl Grid.Row="1" SelectedIndex="{Binding SelectedTab}" Margin="16,12,16,8" Background="Transparent" BorderThickness="0,1,0,0" BorderBrush="{StaticResource Line}">
 
+            <!-- ======================================================== MODEL -->
+            <TabItem Header="Model">
+                <Grid Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="320" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- project browser -->
+                    <Border Style="{StaticResource Card}">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top">
+                                <TextBlock Text="Project browser" Style="{StaticResource SectionTitle}" />
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,6">
+                                    <Button Content="Open model…" Style="{StaticResource Primary}" Command="{Binding OpenModelCommand}"
+                                            ToolTip="Open an .rvt in Revit (starts Revit if it is closed) and show it here." />
+                                    <CheckBox Content="Detach from central" IsChecked="{Binding DetachOnOpen}" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <TextBox Text="{Binding BrowserFilter, UpdateSourceTrigger=PropertyChanged}" ToolTip="Filter by name" />
+                            </StackPanel>
+                            <ListBox ItemsSource="{Binding BrowserView}" SelectedItem="{Binding SelectedBrowserItem}" BorderBrush="{StaticResource Line}"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.IsVirtualizingWhenGrouping="True" Margin="0,6,0,0">
+                                <ListBox.GroupStyle>
+                                    <GroupStyle>
+                                        <GroupStyle.HeaderTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="{StaticResource Accent}" Margin="2,10,0,2" />
+                                            </DataTemplate>
+                                        </GroupStyle.HeaderTemplate>
+                                    </GroupStyle>
+                                </ListBox.GroupStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="8,2,0,2">
+                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Detail}" FontSize="11.5" Foreground="{StaticResource Muted}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- viewer -->
+                    <Border Grid.Column="1" Style="{StaticResource Card}" Margin="0,0,0,12">
+                        <DockPanel>
+                            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <RadioButton Content="Picture" GroupName="viewerMode" IsChecked="{Binding ShowPicture}" Margin="0,0,14,0" />
+                                    <RadioButton Content="3D model" GroupName="viewerMode" IsChecked="{Binding Show3D}" Margin="0,0,20,0" />
+                                </StackPanel>
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <StackPanel Orientation="Horizontal" Visibility="{Binding ShowPicture, Converter={StaticResource BoolToVis}}">
+                                        <ComboBox Width="160" ItemsSource="{Binding PictureQualities}" SelectedItem="{Binding PictureQuality}" DisplayMemberPath="Label" Margin="0,0,8,0" />
+                                        <Button Content="Refresh picture" Command="{Binding RenderPictureCommand}" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Visibility="{Binding Show3D, Converter={StaticResource BoolToVis}}">
+                                        <Button Content="Load 3D from Revit" Style="{StaticResource Primary}" Command="{Binding Load3DCommand}"
+                                                ToolTip="Uses the selected 3D view's visibility, or the default {3D} view." />
+                                        <Button Content="Iso" Click="View3D_Click" Tag="Iso" Padding="10,6" />
+                                        <Button Content="Top" Click="View3D_Click" Tag="Top" Padding="10,6" />
+                                        <Button Content="Front" Click="View3D_Click" Tag="Front" Padding="10,6" />
+                                        <Button Content="Right" Click="View3D_Click" Tag="Right" Padding="10,6" />
+                                    </StackPanel>
+                                    <Button Content="Open in Revit" Command="{Binding OpenViewInRevitCommand}" Margin="0" />
+                                </StackPanel>
+                            </DockPanel>
+
+                            <TextBlock DockPanel.Dock="Bottom" Margin="0,8,0,0" Foreground="{StaticResource Muted}" TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="{Binding ViewerStatus}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Show3D}" Value="True">
+                                                <Setter Property="Text" Value="{Binding Info, ElementName=Viewer3D}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <Grid>
+                                <c:ZoomImage Source="{Binding ViewImage}" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                                             Visibility="{Binding ShowPicture, Converter={StaticResource BoolToVis}}" />
+
+                                <Grid Visibility="{Binding Show3D, Converter={StaticResource BoolToVis}}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="230" />
+                                    </Grid.ColumnDefinitions>
+                                    <c:ModelView3D x:Name="Viewer3D" ModelFile="{Binding Model3DFile}" BorderBrush="{StaticResource Line}" BorderThickness="1" />
+                                    <DockPanel Grid.Column="1" Margin="10,0,0,0">
+                                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+                                            <TextBlock Text="Categories" FontWeight="SemiBold" />
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                <Button Content="All" Style="{StaticResource Link}" Click="Layers_All" />
+                                                <Button Content="None" Style="{StaticResource Link}" Click="Layers_None" Margin="0" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                        <ListBox ItemsSource="{Binding Layers, ElementName=Viewer3D}" BorderBrush="{StaticResource Line}"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <CheckBox IsChecked="{Binding IsVisible}" Margin="0,2">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <Border Width="12" Height="12" Background="{Binding Swatch}" CornerRadius="2" Margin="0,0,6,0" />
+                                                            <TextBlock Text="{Binding Name}" />
+                                                        </StackPanel>
+                                                    </CheckBox>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </DockPanel>
+                                </Grid>
+                            </Grid>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
             <!-- ======================================================== VIEWS -->
             <TabItem Header="Plans &amp; sections">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,12,0,0">

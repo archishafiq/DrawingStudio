@@ -81,7 +81,7 @@ namespace DrawingStudio.App.ViewModels
         }
 
         /// <summary>Index of the Changes tab in MainWindow.xaml.</summary>
-        private const int ChangesTabIndex = 4;
+        private const int ChangesTabIndex = 5;
 
         /// <summary>A change built from the current tab settings: what Add would queue, and what the preview shows.</summary>
         private sealed class Prepared
