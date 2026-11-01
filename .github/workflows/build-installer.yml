@@ -35,15 +35,19 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: DrawingStudio-Setup
-          path: dist/*.exe
+          path: |
+            dist/*.exe
+            dist/*.zip
 
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.APP_VERSION }}
           name: Drawing Studio ${{ env.APP_VERSION }}
           target_commitish: ${{ github.sha }}
-          files: dist/*.exe
+          files: |
+            dist/*.exe
+            dist/*.zip
           body: |
-            **DrawingStudio.exe** - standalone: just run it. It adds itself to every Revit 2022-2027 on the PC.
+            **DrawingStudio-Portable-*.zip** / **DrawingStudio.exe** - portable: no install, just run it. It adds itself to every Revit 2022-2027 on the PC.
             **DrawingStudio-Setup-*.exe** - installer for all Windows users (needs admin).
             In Revit, choose **Always Load** for Drawing Studio Bridge the first time.

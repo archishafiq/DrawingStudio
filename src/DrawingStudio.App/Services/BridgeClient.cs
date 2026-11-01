@@ -139,12 +139,14 @@ namespace DrawingStudio.App.Services
     /// <summary>Loads and saves the project standard as JSON in %APPDATA%\DrawingStudio.</summary>
     public static class StandardsStore
     {
-        public static string FilePath =>
+        public static string FilePath => PortablePaths.StandardsFile;
+
+        private static string LegacyPath =>
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DrawingStudio", "standards.json");
 
         public static StandardsConfig Load(string path = null)
         {
-            path = path ?? FilePath;
+            path = path ?? (File.Exists(FilePath) ? FilePath : LegacyPath);
             try
             {
                 if (File.Exists(path))

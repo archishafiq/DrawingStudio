@@ -56,6 +56,24 @@ if ($LASTEXITCODE -ne 0) { throw 'App build failed.' }
 New-Item -ItemType Directory -Force -Path $dist | Out-Null
 Copy-Item "$build\App\DrawingStudio.exe" "$dist\DrawingStudio.exe"
 
+# portable package: the exe plus a one-click way to take the add-in out of Revit again
+$portable = Join-Path $build 'Portable\DrawingStudio'
+New-Item -ItemType Directory -Force -Path $portable | Out-Null
+Copy-Item "$build\App\DrawingStudio.exe" $portable
+Set-Content -Path "$portable\Remove from Revit.bat" -Encoding ascii -Value '@"%~dp0DrawingStudio.exe" --remove-addin'
+Set-Content -Path "$portable\README.txt" -Encoding ascii -Value @(
+    'Drawing Studio for Revit - portable',
+    '',
+    '1. Put this folder anywhere (Desktop, D:\Tools, a USB drive). No installation or admin rights needed.',
+    '2. Double-click DrawingStudio.exe. It adds itself to every Revit 2022-2027 on this PC.',
+    '3. Start Revit and click "Always Load" for Drawing Studio Bridge.',
+    '4. The app connects to Revit automatically (or use the Drawing Studio button on the Revit ribbon).',
+    '',
+    'Settings are kept in the DrawingStudio-Data folder created next to the exe.',
+    'If you move the folder, run DrawingStudio.exe once from the new place.',
+    'To take it out of Revit: double-click "Remove from Revit.bat".')
+Compress-Archive -Path $portable -DestinationPath "$dist\DrawingStudio-Portable-$Version.zip" -Force
+
 # ------------------------------------------------------------ installer
 $iscc = @(
     (Get-Command iscc -ErrorAction SilentlyContinue).Source,
@@ -77,4 +95,4 @@ Write-Host "`n== Installer" -ForegroundColor Cyan
 if ($LASTEXITCODE -ne 0) { throw 'Installer build failed.' }
 
 Write-Host "`nReady in $dist :" -ForegroundColor Green
-Get-ChildItem $dist -Filter *.exe | ForEach-Object { Write-Host "  $($_.Name)" }
+Get-ChildItem $dist | ForEach-Object { Write-Host "  $($_.Name)" }

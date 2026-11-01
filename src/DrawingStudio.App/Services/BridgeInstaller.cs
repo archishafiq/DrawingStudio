@@ -12,7 +12,7 @@ namespace DrawingStudio.App.Services
     /// <summary>
     /// Makes DrawingStudio.exe self-installing: the Revit add-ins for every supported
     /// version are embedded in the exe (bridges.zip). On start-up they are unpacked to
-    /// %LOCALAPPDATA%\DrawingStudio\Bridge\R20xx and registered for the current user in
+    /// DrawingStudio-Data\Bridge\R20xx next to the exe (portable) and registered for the current user in
     /// %APPDATA%\Autodesk\Revit\Addins\20xx. No admin rights are needed.
     /// </summary>
     public static class BridgeInstaller
@@ -64,13 +64,15 @@ namespace DrawingStudio.App.Services
                     continue;
                 }
 
-                var target = Path.Combine(SessionPaths.Root, "Bridge", folder.Key);
+                var target = Path.Combine(PortablePaths.BridgeDir, folder.Key);
                 var marker = Path.Combine(target, "version.txt");
                 var manifest = Path.Combine(UserAddins(revit), AddinFile);
                 var dll = Path.Combine(target, "DrawingStudio.Bridge.dll");
 
+                // Also re-register when the portable folder has been moved since last time.
                 bool upToDate = File.Exists(marker) && File.ReadAllText(marker).Trim() == version
-                                && File.Exists(manifest) && File.Exists(dll);
+                                && File.Exists(dll) && File.Exists(manifest)
+                                && File.ReadAllText(manifest).IndexOf(System.Security.SecurityElement.Escape(dll), StringComparison.OrdinalIgnoreCase) >= 0;
                 if (upToDate)
                 {
                     outcome.Ready.Add(revit);
@@ -113,7 +115,7 @@ namespace DrawingStudio.App.Services
                 var manifest = Path.Combine(UserAddins(v.ToString()), AddinFile);
                 if (File.Exists(manifest)) { File.Delete(manifest); removed++; }
             }
-            try { Directory.Delete(Path.Combine(SessionPaths.Root, "Bridge"), true); } catch { /* in use or missing */ }
+            try { Directory.Delete(PortablePaths.BridgeDir, true); } catch { /* in use or missing */ }
             return removed;
         }
 
