@@ -1,0 +1,261 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Input;
+using System.Windows.Threading;
+using DrawingStudio.App.Services;
+using DrawingStudio.Shared;
+
+namespace DrawingStudio.App.ViewModels
+{
+    /// <summary>Connection, model data, logging and standards. Each tab lives in its own partial file.</summary>
+    public sealed partial class MainViewModel : ObservableObject
+    {
+        private readonly BridgeClient _client = new BridgeClient();
+        private SessionInfo _selectedSession;
+        private bool _isConnected;
+        private bool _isBusy;
+        private string _status = "Not connected";
+        private string _documentTitle = "No model";
+        private StandardsConfig _standards;
+
+        public MainViewModel(int? revitProcessId)
+        {
+            _standards = StandardsStore.Load();
+            InitViews();
+            InitSheets();
+            InitAnnotation();
+            InitQa();
+
+            RefreshSessionsCommand = new RelayCommand(_ => RefreshSessions());
+            ConnectCommand = new AsyncCommand(_ => ConnectAsync(), () => SelectedSession != null && !IsBusy);
+            RefreshModelCommand = new AsyncCommand(_ => RunAsync("Reading model", RefreshModelAsync), CanRun);
+            SaveStandardsCommand = new RelayCommand(_ => SaveStandards());
+            ResetStandardsCommand = new RelayCommand(_ => ResetStandards());
+            CheckAllCommand = new RelayCommand(p => CheckHelper.SetAll(p, true));
+            CheckNoneCommand = new RelayCommand(p => CheckHelper.SetAll(p, false));
+            ClearLogCommand = new RelayCommand(_ => Log.Clear());
+
+            _preferredPid = revitProcessId;
+            RefreshSessions();
+            _ = AutoConnectTickAsync();
+
+            // Keep watching: connect as soon as Revit starts, reconnect if it restarts.
+            _watcher = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+            _watcher.Tick += async (_, __) => await AutoConnectTickAsync();
+            _watcher.Start();
+        }
+
+        // ---------------------------------------------------------------- automatic connection
+
+        private readonly DispatcherTimer _watcher;
+        private readonly HashSet<int> _autoTried = new HashSet<int>();
+        private int? _preferredPid;
+
+        private async Task AutoConnectTickAsync()
+        {
+            if (IsBusy) return;
+
+            if (IsConnected)
+            {
+                // Revit closed (or crashed) under us
+                if (SelectedSession == null || !SessionLocator.IsAlive(SelectedSession.ProcessId) || !_client.IsConnected)
+                {
+                    _client.Close();
+                    IsConnected = false;
+                    Model = null;
+                    DocumentTitle = "No model";
+                    AddLog("Revit session ended. Waiting for Revit…");
+                    RefreshSessions();
+                }
+                else if (Model == null)
+                {
+                    // Connected before a project was open: pick the model up once one is.
+                    IsBusy = true;
+                    try { await RefreshModelAsync(); Status = "Ready"; }
+                    catch { /* still no project open */ }
+                    finally { IsBusy = false; CommandManager.InvalidateRequerySuggested(); }
+                }
+                return;
+            }
+
+            RefreshSessions();
+            var target = Sessions.FirstOrDefault(s => s.ProcessId == _preferredPid)
+                         ?? (Sessions.Count == 1 ? Sessions[0] : null);
+            if (target == null || _autoTried.Contains(target.ProcessId)) return;
+
+            _autoTried.Add(target.ProcessId); // one automatic attempt per Revit session; Connect button retries
+            SelectedSession = target;
+            await ConnectAsync();
+        }
+
+        // ---------------------------------------------------------------- properties
+
+        public ObservableCollection<SessionInfo> Sessions { get; } = new ObservableCollection<SessionInfo>();
+        public ObservableCollection<string> Log { get; } = new ObservableCollection<string>();
+
+        public SessionInfo SelectedSession { get => _selectedSession; set => Set(ref _selectedSession, value); }
+        public bool IsConnected { get => _isConnected; private set => Set(ref _isConnected, value); }
+        public bool IsBusy { get => _isBusy; private set => Set(ref _isBusy, value); }
+        public string Status { get => _status; private set => Set(ref _status, value); }
+        public string DocumentTitle { get => _documentTitle; private set => Set(ref _documentTitle, value); }
+        public ModelInfo Model { get; private set; }
+
+        public StandardsConfig Standards
+        {
+            get => _standards;
+            private set { _standards = value; OnPropertyChanged(); }
+        }
+
+        public string[] SuitabilityCodes => StandardsConfig.SuitabilityCodes;
+        public string[] TitleStripSides { get; } = { "Right", "Bottom" };
+
+        public ICommand RefreshSessionsCommand { get; }
+        public ICommand ConnectCommand { get; }
+        public ICommand RefreshModelCommand { get; }
+        public ICommand SaveStandardsCommand { get; }
+        public ICommand ResetStandardsCommand { get; }
+        public ICommand CheckAllCommand { get; }
+        public ICommand CheckNoneCommand { get; }
+        public ICommand ClearLogCommand { get; }
+
+        // ---------------------------------------------------------------- connection
+
+        private bool CanRun() => IsConnected && !IsBusy;
+
+        private void RefreshSessions()
+        {
+            var keep = SelectedSession?.ProcessId;
+            Sessions.Clear();
+            foreach (var s in SessionLocator.List()) Sessions.Add(s);
+            SelectedSession = Sessions.FirstOrDefault(s => s.ProcessId == keep) ?? Sessions.FirstOrDefault();
+            if (Sessions.Count == 0 && !IsBusy) Status = "Waiting for Revit… start Revit and open a project.";
+        }
+
+        private async Task ConnectAsync()
+        {
+            if (SelectedSession == null) return;
+            IsBusy = true;
+            Status = "Connecting to " + SelectedSession + "…";
+            try
+            {
+                await _client.ConnectAsync(SelectedSession.PipeName);
+                await _client.SendAsync<string>(Commands.Ping);
+                IsConnected = true;
+                AddLog("Connected to " + SelectedSession + ".");
+                IsBusy = false;
+                await RunAsync("Reading model", RefreshModelAsync);
+            }
+            catch (Exception ex)
+            {
+                IsConnected = false;
+                Status = ex.Message;
+                AddLog("ERROR: " + ex.Message);
+            }
+            finally
+            {
+                IsBusy = false;
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
+        private async Task RefreshModelAsync()
+        {
+            var model = await Send<ModelInfo>(Commands.ModelInfo);
+            Model = model;
+            DocumentTitle = model.DocumentTitle + "  ·  Revit " + model.RevitVersion;
+            OnPropertyChanged(nameof(Model));
+
+            LoadViewsTab(model);
+            LoadSheetsTab(model);
+            LoadAnnotationTab(model);
+            LoadQaTab(model);
+
+            AddLog($"Model: {model.Levels.OrEmpty().Count} levels, {model.Grids.OrEmpty().Count} grids, " +
+                   $"{model.Views.OrEmpty().Count} views, {model.Sheets.OrEmpty().Count} sheets.");
+        }
+
+        // ---------------------------------------------------------------- plumbing
+
+        private async Task RunAsync(string label, Func<Task> work)
+        {
+            if (IsBusy) return;
+            IsBusy = true;
+            Status = label + "…";
+            try
+            {
+                await work();
+                Status = "Ready";
+            }
+            catch (Exception ex)
+            {
+                AddLog("ERROR: " + ex.Message);
+                Status = ex.Message;
+                if (!_client.IsConnected)
+                {
+                    IsConnected = false;
+                    Status = "Disconnected. " + ex.Message;
+                }
+            }
+            finally
+            {
+                IsBusy = false;
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
+        private Task<T> Send<T>(string command) => _client.SendAsync<T>(command, AddLogs);
+
+        private Task<TResult> Send<TRequest, TResult>(string command, TRequest request) =>
+            _client.SendAsync<TRequest, TResult>(command, request, AddLogs);
+
+        private void AddLogs(IEnumerable<string> lines)
+        {
+            foreach (var l in lines) AddLog(l);
+        }
+
+        public void AddLog(string message)
+        {
+            void Write() => Log.Insert(0, DateTime.Now.ToString("HH:mm:ss") + "  " + message);
+            if (Application.Current?.Dispatcher.CheckAccess() == false) Application.Current.Dispatcher.Invoke(Write);
+            else Write();
+        }
+
+        private static bool Confirm(string message) =>
+            MessageBox.Show(message, "Drawing Studio", MessageBoxButton.OKCancel, MessageBoxImage.Question) == MessageBoxResult.OK;
+
+        private static List<long> CheckedIds<T>(IEnumerable<Checkable<T>> items, Func<T, long> id) =>
+            items.Where(i => i.IsChecked).Select(i => id(i.Item)).ToList();
+
+        // ---------------------------------------------------------------- standards
+
+        private void SaveStandards()
+        {
+            try
+            {
+                StandardsStore.Save(Standards);
+                AddLog("Standards saved to " + StandardsStore.FilePath);
+            }
+            catch (Exception ex)
+            {
+                AddLog("ERROR: could not save standards: " + ex.Message);
+            }
+        }
+
+        private void ResetStandards()
+        {
+            if (!Confirm("Reset all standards to the ISO 19650 defaults?")) return;
+            Standards = StandardsConfig.CreateDefault();
+            AddLog("Standards reset to defaults (not saved yet).");
+        }
+
+        public void Shutdown()
+        {
+            _watcher?.Stop();
+            _client.Dispose();
+        }
+    }
+}

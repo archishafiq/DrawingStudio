@@ -1,0 +1,560 @@
+<Window x:Class="DrawingStudio.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Drawing Studio for Revit"
+        Width="1280" Height="860" MinWidth="1000" MinHeight="640"
+        WindowStartupLocation="CenterScreen"
+        FontFamily="Segoe UI" FontSize="13"
+        Foreground="{StaticResource Ink}" Background="{StaticResource Surface}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="150" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ============================================================ header -->
+        <Border Grid.Row="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" Padding="20,12">
+            <DockPanel LastChildFill="False">
+                <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
+                    <TextBlock Text="Drawing Studio" FontSize="20" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding DocumentTitle}" Foreground="{StaticResource Muted}" />
+                </StackPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Revit session" Style="{StaticResource FieldLabel}" />
+                    <ComboBox Width="230" ItemsSource="{Binding Sessions}" SelectedItem="{Binding SelectedSession}" />
+                    <Button Content="⟳" ToolTip="Look for running Revit sessions" Margin="6,0,8,0" Padding="10,6"
+                            Command="{Binding RefreshSessionsCommand}" />
+                    <Button Content="Connect" Style="{StaticResource Primary}" Command="{Binding ConnectCommand}" />
+                    <Button Content="Reload model" Command="{Binding RefreshModelCommand}" Margin="0" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- ============================================================ tabs -->
+        <TabControl Grid.Row="1" Margin="16,12,16,8" Background="Transparent" BorderThickness="0,1,0,0" BorderBrush="{StaticResource Line}">
+
+            <!-- ======================================================== VIEWS -->
+            <TabItem Header="Plans &amp; sections">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,12,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- plans -->
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Plans per level" Style="{StaticResource SectionTitle}" />
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="One plan per ticked level, named and scaled by the project standard, with an optional view template." />
+                                <DockPanel Margin="0,0,0,4">
+                                    <TextBlock Text="Levels" FontWeight="SemiBold" />
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Button Content="All" Style="{StaticResource Link}" Command="{Binding CheckAllCommand}" CommandParameter="{Binding Levels}" />
+                                        <Button Content="None" Style="{StaticResource Link}" Command="{Binding CheckNoneCommand}" CommandParameter="{Binding Levels}" Margin="0" />
+                                    </StackPanel>
+                                </DockPanel>
+                                <ListBox ItemsSource="{Binding Levels}" Style="{StaticResource CheckList}" Height="220" />
+
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="130" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Text="Plan type" Style="{StaticResource FieldLabel}" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{Binding PlanKinds}" SelectedItem="{Binding PlanKind}" DisplayMemberPath="Label" />
+                                    <TextBlock Grid.Row="1" Text="View template" Style="{StaticResource FieldLabel}" />
+                                    <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding PlanTemplates}" SelectedItem="{Binding PlanTemplate}" DisplayMemberPath="Name" />
+                                    <TextBlock Grid.Row="2" Text="Scale  1 :" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Standards.PlanScale}" />
+                                    <TextBlock Grid.Row="3" Text="Name pattern" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Standards.PlanNameTemplate}"
+                                             ToolTip="Tokens: {Role} {PlanKind} {LevelName} {LevelCode} {Scale}" />
+                                </Grid>
+                                <Button Content="Create plans" Style="{StaticResource Primary}" HorizontalAlignment="Left" Margin="0,12,0,0"
+                                        Command="{Binding CreatePlansCommand}" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- sections -->
+                        <Border Grid.Column="1" Style="{StaticResource Card}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="Sections" Style="{StaticResource SectionTitle}" />
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Building sections along grid lines, or long and cross sections through beams, walls, columns and footings you select in Revit." />
+                                <ComboBox ItemsSource="{Binding SectionModes}" SelectedItem="{Binding SectionMode}" DisplayMemberPath="Label" />
+
+                                <StackPanel Visibility="{Binding IsGridSectionMode, Converter={StaticResource BoolToVis}}" Margin="0,8,0,0">
+                                    <DockPanel Margin="0,0,0,4">
+                                        <TextBlock Text="Grids" FontWeight="SemiBold" />
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                            <Button Content="All" Style="{StaticResource Link}" Command="{Binding CheckAllCommand}" CommandParameter="{Binding Grids}" />
+                                            <Button Content="None" Style="{StaticResource Link}" Command="{Binding CheckNoneCommand}" CommandParameter="{Binding Grids}" Margin="0" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                    <ListBox ItemsSource="{Binding Grids}" Style="{StaticResource CheckList}" Height="150">
+                                        <ListBox.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel ItemWidth="90" />
+                                            </ItemsPanelTemplate>
+                                        </ListBox.ItemsPanel>
+                                    </ListBox>
+                                </StackPanel>
+
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="130" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="130" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Text="View template" Style="{StaticResource FieldLabel}" />
+                                    <ComboBox Grid.Column="1" Grid.ColumnSpan="3" ItemsSource="{Binding SectionTemplates}" SelectedItem="{Binding SectionTemplate}" DisplayMemberPath="Name" />
+                                    <TextBlock Grid.Row="1" Text="Scale  1 :" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Standards.SectionScale}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="  Far clip (mm)" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding Standards.SectionDepthMm}" />
+                                    <TextBlock Grid.Row="2" Text="Cut offset (mm)" Style="{StaticResource FieldLabel}"
+                                               ToolTip="Moves the cut line sideways from the grid or element axis. Positive = towards the viewer." />
+                                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Standards.SectionOffsetMm}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="2" Text="  Extent pad (mm)" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding Standards.SectionPaddingMm}" />
+                                    <TextBlock Grid.Row="3" Text="Name pattern" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Standards.SectionNameTemplate}"
+                                             ToolTip="Tokens: {Role} {Kind} {Ref} {Category} {Index} {Scale}" />
+                                </Grid>
+                                <CheckBox Content="Flip looking direction" IsChecked="{Binding SectionFlip}" Margin="0,8,0,0" />
+                                <Button Content="Create sections" Style="{StaticResource Primary}" HorizontalAlignment="Left" Margin="0,12,0,0"
+                                        Command="{Binding CreateSectionsCommand}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ======================================================== SHEETS -->
+            <TabItem Header="Sheets">
+                <Grid Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="380" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- views to place -->
+                    <Border Style="{StaticResource Card}">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top">
+                                <TextBlock Text="Views" Style="{StaticResource SectionTitle}" />
+                                <TextBox Text="{Binding SheetViewFilter, UpdateSourceTrigger=PropertyChanged}" ToolTip="Filter by name" />
+                                <DockPanel Margin="0,4">
+                                    <CheckBox Content="Only views not on a sheet" IsChecked="{Binding OnlyUnplaced}" />
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Button Content="All" Style="{StaticResource Link}" Command="{Binding CheckAllCommand}" CommandParameter="{Binding SheetViewsView}" />
+                                        <Button Content="None" Style="{StaticResource Link}" Command="{Binding CheckNoneCommand}" CommandParameter="{Binding SheetViewsView}" Margin="0" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </StackPanel>
+                            <ListBox ItemsSource="{Binding SheetViewsView}" Style="{StaticResource CheckList}" />
+                        </DockPanel>
+                    </Border>
+
+                    <Grid Grid.Column="1">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- new sheets -->
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Top">
+                                    <TextBlock Text="New sheets" Style="{StaticResource SectionTitle}" />
+                                    <TextBlock Style="{StaticResource Hint}"
+                                               Text="Numbers are ISO 19650 container names built from the Standards tab. The level field comes from each view's level (ZZ when a sheet mixes levels). Edit any cell before creating." />
+                                    <WrapPanel>
+                                        <RadioButton Content="One sheet per view" GroupName="sheetMode" IsChecked="{Binding OneSheetPerView}" Margin="0,0,16,6" />
+                                        <RadioButton Content="All ticked views on one sheet, named" GroupName="sheetMode" Margin="0,0,6,6"
+                                                     IsChecked="{Binding CombineOnOneSheet}" />
+                                        <TextBox Width="220" Text="{Binding CombinedSheetName}" Margin="0,-3,0,3" />
+                                    </WrapPanel>
+                                    <Grid Margin="0,4,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Title block" Style="{StaticResource FieldLabel}" />
+                                        <ComboBox Grid.Column="1" ItemsSource="{Binding TitleBlocks}" SelectedItem="{Binding TitleBlock}" />
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="10,0,0,0">
+                                            <Button Content="Add to list" Command="{Binding GenerateSheetListCommand}" />
+                                            <Button Content="Clear" Command="{Binding ClearSheetListCommand}" Margin="0" />
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+
+                                <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+                                    <WrapPanel>
+                                        <CheckBox Content="Place views on the new sheets" IsChecked="{Binding AutoPlace}" Margin="0,4,20,4" />
+                                        <CheckBox Content="Number details in reading order" IsChecked="{Binding RenumberDetails}" />
+                                    </WrapPanel>
+                                    <TextBlock Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,10">
+                                        <Run Text="Title block values:" />
+                                        <Run Text="{Binding Standards.Suitability, Mode=OneWay}" FontWeight="SemiBold" />
+                                        <Run Text="·" />
+                                        <Run Text="{Binding Standards.Revision, Mode=OneWay}" FontWeight="SemiBold" />
+                                        <Run Text="· drawn" />
+                                        <Run Text="{Binding Standards.DrawnBy, Mode=OneWay}" FontWeight="SemiBold" />
+                                        <Run Text="· checked" />
+                                        <Run Text="{Binding Standards.CheckedBy, Mode=OneWay}" FontWeight="SemiBold" />
+                                        <Run Text="  (edit on the Standards tab)" />
+                                    </TextBlock>
+                                    <Button Content="Create sheets" Style="{StaticResource Primary}" HorizontalAlignment="Left"
+                                            Command="{Binding CreateSheetsCommand}" />
+                                </StackPanel>
+
+                                <DataGrid ItemsSource="{Binding PlannedSheets}" AutoGenerateColumns="False" CanUserAddRows="False"
+                                          HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderBrush="{StaticResource Line}"
+                                          HorizontalGridLinesBrush="{StaticResource Line}" RowHeight="28">
+                                    <DataGrid.Columns>
+                                        <DataGridCheckBoxColumn Header="" Binding="{Binding Include, UpdateSourceTrigger=PropertyChanged}" Width="32" />
+                                        <DataGridTextColumn Header="Sheet number" Binding="{Binding Number}" Width="290" />
+                                        <DataGridTextColumn Header="Sheet name" Binding="{Binding Name}" Width="*" />
+                                        <DataGridTextColumn Header="Views" Binding="{Binding ViewsText}" Width="*" IsReadOnly="True"
+                                                            Foreground="{StaticResource Muted}" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
+                        </Border>
+
+                        <!-- existing sheet -->
+                        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="Existing sheet" Style="{StaticResource SectionTitle}" />
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Add the ticked views to a sheet and lay out every viewport inside the border, clear of the title strip." />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox ItemsSource="{Binding ExistingSheets}" SelectedItem="{Binding TargetSheet}" />
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0">
+                                        <Button Content="Place ticked views" Command="{Binding PlaceOnSheetCommand}" />
+                                        <Button Content="Re-arrange sheet" Command="{Binding RelayoutSheetCommand}" Margin="0" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <!-- ======================================================== ANNOTATION -->
+            <TabItem Header="Annotation">
+                <Grid Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="420" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Style="{StaticResource Card}">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top">
+                                <TextBlock Text="Views to annotate" Style="{StaticResource SectionTitle}" />
+                                <TextBox Text="{Binding AnnotViewFilter, UpdateSourceTrigger=PropertyChanged}" ToolTip="Filter by name" />
+                                <StackPanel Orientation="Horizontal" Margin="0,4">
+                                    <Button Content="All" Style="{StaticResource Link}" Command="{Binding CheckAllCommand}" CommandParameter="{Binding AnnotViewsView}" />
+                                    <Button Content="None" Style="{StaticResource Link}" Command="{Binding CheckNoneCommand}" CommandParameter="{Binding AnnotViewsView}" />
+                                    <Button Content="Active view only" Style="{StaticResource Link}" Command="{Binding CheckActiveViewCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                            <ListBox ItemsSource="{Binding AnnotViewsView}" Style="{StaticResource CheckList}" />
+                        </DockPanel>
+                    </Border>
+
+                    <Border Grid.Column="1" Style="{StaticResource Card}" Margin="0,0,0,12" VerticalAlignment="Top">
+                        <StackPanel>
+                            <TextBlock Text="Grid dimensions" Style="{StaticResource SectionTitle}" />
+                            <TextBlock Style="{StaticResource Hint}"
+                                       Text="Plans only. Parallel grids get a chain string and an overall string placed just inside the grid heads. Offsets are paper millimetres, so they scale with the view." />
+                            <CheckBox Content="Dimension grids" IsChecked="{Binding DimensionGrids}" />
+                            <CheckBox Content="Add overall dimension" IsChecked="{Binding OverallDimension}" Margin="22,4,0,4" />
+                            <CheckBox Content="Both ends of the grids" IsChecked="{Binding BothSides}" Margin="22,4,0,4" />
+                            <StackPanel Orientation="Horizontal" Margin="22,4,0,4">
+                                <TextBlock Text="Offset from heads" Style="{StaticResource FieldLabel}" />
+                                <TextBox Width="60" Text="{Binding Standards.DimOffsetMm}" />
+                                <TextBlock Text="mm    Gap between strings" Style="{StaticResource FieldLabel}" Margin="8,0,10,0" />
+                                <TextBox Width="60" Text="{Binding Standards.DimGapMm}" />
+                                <TextBlock Text="mm" Style="{StaticResource FieldLabel}" Margin="8,0,0,0" />
+                            </StackPanel>
+                            <CheckBox Content="Show grid heads at both ends" IsChecked="{Binding GridBubbles}" Margin="0,8,0,4" />
+
+                            <TextBlock Text="Tags" Style="{StaticResource SectionTitle}" Margin="0,18,0,4" />
+                            <TextBlock Style="{StaticResource Hint}"
+                                       Text="Tags each element at its centre using the category's loaded tag family." />
+                            <CheckBox Content="Tag elements" IsChecked="{Binding TagElements}" />
+                            <CheckBox Content="Skip elements already tagged in that view" IsChecked="{Binding SkipTagged}" Margin="22,4,0,4" />
+                            <CheckBox Content="With leader" IsChecked="{Binding TagLeader}" Margin="22,4,0,4" />
+                            <ItemsControl ItemsSource="{Binding TagCategories}" ItemTemplate="{StaticResource CheckRow}" Margin="22,6,0,0">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel ItemWidth="220" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+
+                            <Button Content="Annotate ticked views" Style="{StaticResource Primary}" HorizontalAlignment="Left" Margin="0,16,0,0"
+                                    Command="{Binding AnnotateCommand}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- ======================================================== QA -->
+            <TabItem Header="QA &amp; numbering">
+                <Grid Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="400" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Checks" Style="{StaticResource SectionTitle}" />
+                                <ItemsControl ItemsSource="{Binding QaChecksList}" ItemTemplate="{StaticResource CheckRow}" />
+                                <Button Content="Run checks" Style="{StaticResource Primary}" HorizontalAlignment="Left" Margin="0,10,0,0"
+                                        Command="{Binding RunQaCommand}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Row="1" Style="{StaticResource Card}">
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Top">
+                                    <TextBlock Text="Renumber" Style="{StaticResource SectionTitle}" />
+                                    <TextBlock Style="{StaticResource Hint}"
+                                               Text="Sheets: re-sequence the ticked sheets to the standard, keeping each sheet's level code. Details: number viewports 1..n top-left to bottom-right." />
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                        <Button Content="All" Style="{StaticResource Link}" Command="{Binding CheckAllCommand}" CommandParameter="{Binding RenumberSheets}" />
+                                        <Button Content="None" Style="{StaticResource Link}" Command="{Binding CheckNoneCommand}" CommandParameter="{Binding RenumberSheets}" />
+                                    </StackPanel>
+                                </StackPanel>
+                                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0">
+                                    <Button Content="Renumber sheets" Command="{Binding RenumberSheetsCommand}" />
+                                    <Button Content="Renumber details from" Command="{Binding RenumberDetailsCommand}" Margin="0,0,6,0" />
+                                    <TextBox Width="40" Text="{Binding DetailStart}" VerticalContentAlignment="Center" />
+                                </StackPanel>
+                                <ListBox ItemsSource="{Binding RenumberSheets}" Style="{StaticResource CheckList}" />
+                            </DockPanel>
+                        </Border>
+                    </Grid>
+
+                    <Border Grid.Column="1" Style="{StaticResource Card}" Margin="0,0,0,12">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top">
+                                <TextBlock Text="Issues" Style="{StaticResource SectionTitle}" />
+                                <TextBlock Text="{Binding QaSummary}" Style="{StaticResource Hint}" />
+                            </StackPanel>
+                            <DataGrid ItemsSource="{Binding Issues}" SelectedItem="{Binding SelectedIssue}" AutoGenerateColumns="False"
+                                      IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                                      BorderBrush="{StaticResource Line}" HorizontalGridLinesBrush="{StaticResource Line}" RowHeight="26">
+                                <DataGrid.InputBindings>
+                                    <MouseBinding Gesture="LeftDoubleClick" Command="{Binding ShowIssueCommand}" />
+                                </DataGrid.InputBindings>
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="80" />
+                                    <DataGridTextColumn Header="Check" Binding="{Binding Check}" Width="140" />
+                                    <DataGridTextColumn Header="Item" Binding="{Binding ElementName}" Width="*" />
+                                    <DataGridTextColumn Header="Issue" Binding="{Binding Message}" Width="1.4*" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- ======================================================== STANDARDS -->
+            <TabItem Header="Standards">
+                <DockPanel Margin="0,12,0,0">
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,4,0,0">
+                        <Button Content="Save standards" Style="{StaticResource Primary}" Command="{Binding SaveStandardsCommand}" />
+                        <Button Content="Reset to ISO defaults" Command="{Binding ResetStandardsCommand}" />
+                    </StackPanel>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <WrapPanel>
+                            <WrapPanel.Resources>
+                                <Style TargetType="Border" BasedOn="{StaticResource Card}">
+                                    <Setter Property="Width" Value="380" />
+                                </Style>
+                            </WrapPanel.Resources>
+
+                            <!-- ISO 19650 -->
+                            <Border>
+                                <StackPanel>
+                                    <TextBlock Text="ISO 19650 container name" Style="{StaticResource SectionTitle}" />
+                                    <TextBlock Style="{StaticResource Hint}" Text="Project-Originator-Volume-Level-Type-Role-Number, e.g. PRJ-ORG-ZZ-01-DR-S-0001." />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="150" /><ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
+                                            <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Text="Project" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Standards.ProjectCode}" />
+                                        <TextBlock Grid.Row="1" Text="Originator" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Standards.Originator}" />
+                                        <TextBlock Grid.Row="2" Text="Volume / system" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Standards.Volume}" />
+                                        <TextBlock Grid.Row="3" Text="Default level" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Standards.DefaultLevelCode}" />
+                                        <TextBlock Grid.Row="4" Text="Information type" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Standards.InfoType}" />
+                                        <TextBlock Grid.Row="5" Text="Role" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Standards.Role}" ToolTip="A architect, S structural, M mechanical, E electrical, P plumbing, C civil" />
+                                        <TextBlock Grid.Row="6" Text="Number digits" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding Standards.NumberDigits}" />
+                                        <TextBlock Grid.Row="7" Text="Start / step" Style="{StaticResource FieldLabel}" />
+                                        <StackPanel Grid.Row="7" Grid.Column="1" Orientation="Horizontal">
+                                            <TextBox Width="80" Text="{Binding Standards.StartNumber}" />
+                                            <TextBox Width="60" Margin="8,3,0,3" Text="{Binding Standards.NumberStep}" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Row="8" Text="Number pattern" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Grid.Row="8" Grid.Column="1" Text="{Binding Standards.SheetNumberTemplate}" />
+                                        <TextBlock Grid.Row="9" Text="Upper-case names" Style="{StaticResource FieldLabel}" />
+                                        <CheckBox Grid.Row="9" Grid.Column="1" IsChecked="{Binding Standards.Uppercase}" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- title block -->
+                            <Border>
+                                <StackPanel>
+                                    <TextBlock Text="Title block (ISO 7200)" Style="{StaticResource SectionTitle}" />
+                                    <TextBlock Style="{StaticResource Hint}" Text="Values written to new sheets. Right column: the Revit parameter that receives each value." />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Text="Drawn by" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Grid.Column="1" Text="{Binding Standards.DrawnBy}" Margin="0,3,6,3" />
+                                        <TextBox Grid.Column="2" Text="{Binding Standards.ParamDrawnBy}" Foreground="{StaticResource Muted}" />
+                                        <TextBlock Grid.Row="1" Text="Checked by" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Standards.CheckedBy}" Margin="0,3,6,3" />
+                                        <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding Standards.ParamCheckedBy}" Foreground="{StaticResource Muted}" />
+                                        <TextBlock Grid.Row="2" Text="Approved by" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Standards.ApprovedBy}" Margin="0,3,6,3" />
+                                        <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding Standards.ParamApprovedBy}" Foreground="{StaticResource Muted}" />
+                                        <TextBlock Grid.Row="3" Text="Suitability" Style="{StaticResource FieldLabel}" />
+                                        <ComboBox Grid.Row="3" Grid.Column="1" IsEditable="True" ItemsSource="{Binding SuitabilityCodes}"
+                                                  Text="{Binding Standards.Suitability}" Margin="0,3,6,3" />
+                                        <TextBox Grid.Row="3" Grid.Column="2" Text="{Binding Standards.ParamSuitability}" Foreground="{StaticResource Muted}" />
+                                        <TextBlock Grid.Row="4" Text="Revision" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Standards.Revision}" Margin="0,3,6,3" />
+                                        <TextBox Grid.Row="4" Grid.Column="2" Text="{Binding Standards.ParamRevision}" Foreground="{StaticResource Muted}" />
+                                        <TextBlock Grid.Row="5" Text="QA requires" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Standards.RequiredSheetParamsText}"
+                                                 ToolTip="Comma-separated parameter names that must not be empty on any sheet." />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- sheet layout -->
+                            <Border>
+                                <StackPanel>
+                                    <TextBlock Text="Sheet layout (ISO 5457)" Style="{StaticResource SectionTitle}" />
+                                    <TextBlock Style="{StaticResource Hint}" Text="Drawing area = title block outline minus borders and the title strip. Paper millimetres." />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="170" /><ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Text="Left (binding) margin" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Grid.Column="1" Text="{Binding Standards.MarginLeftMm}" />
+                                        <TextBlock Grid.Row="1" Text="Other margins" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Standards.MarginOtherMm}" />
+                                        <TextBlock Grid.Row="2" Text="Title strip side" Style="{StaticResource FieldLabel}" />
+                                        <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding TitleStripSides}" SelectedItem="{Binding Standards.TitleStripSide}" />
+                                        <TextBlock Grid.Row="3" Text="Title strip width" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Standards.TitleStripMm}" />
+                                        <TextBlock Grid.Row="4" Text="Gap between views" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Standards.ViewportGapMm}" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- views -->
+                            <Border>
+                                <StackPanel>
+                                    <TextBlock Text="Views and scales (ISO 5455)" Style="{StaticResource SectionTitle}" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="150" /><ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Text="Plan scale  1 :" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Grid.Column="1" Text="{Binding Standards.PlanScale}" />
+                                        <TextBlock Grid.Row="1" Text="Section scale  1 :" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Standards.SectionScale}" />
+                                        <TextBlock Grid.Row="2" Text="Allowed scales" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Standards.AllowedScalesText}" />
+                                        <TextBlock Grid.Row="3" Text="Plan name" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Standards.PlanNameTemplate}" />
+                                        <TextBlock Grid.Row="4" Text="Section name" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Standards.SectionNameTemplate}" />
+                                        <TextBlock Grid.Row="5" Text="View name rule (regex)" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Standards.ViewNameRegex}" FontFamily="Consolas" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </WrapPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
+
+        <!-- ============================================================ log -->
+        <Border Grid.Row="2" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
+            <DockPanel>
+                <DockPanel DockPanel.Dock="Top" Margin="20,6,20,2">
+                    <TextBlock Text="Activity" FontWeight="SemiBold" />
+                    <Button Content="Clear" Style="{StaticResource Link}" Command="{Binding ClearLogCommand}" HorizontalAlignment="Right" Margin="0" />
+                </DockPanel>
+                <ListBox ItemsSource="{Binding Log}" BorderThickness="0" Margin="14,0,14,4" FontFamily="Consolas" FontSize="12"
+                         Foreground="{StaticResource Muted}" />
+            </DockPanel>
+        </Border>
+
+        <!-- ============================================================ status -->
+        <StatusBar Grid.Row="3" Background="{StaticResource Accent}" Foreground="White" Padding="12,2">
+            <StatusBarItem>
+                <TextBlock Text="{Binding Status}" />
+            </StatusBarItem>
+            <StatusBarItem HorizontalAlignment="Right">
+                <ProgressBar Width="120" Height="8" IsIndeterminate="{Binding IsBusy}"
+                             Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+            </StatusBarItem>
+        </StatusBar>
+    </Grid>
+</Window>

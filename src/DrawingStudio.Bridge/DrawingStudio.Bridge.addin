@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- install.ps1 rewrites <Assembly> with the full path for each Revit version. -->
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>Drawing Studio Bridge</Name>
+    <Assembly>DrawingStudio.Bridge.dll</Assembly>
+    <AddInId>6B1C4E0A-7D2F-4B8E-9C3A-2F5D8E1A4C77</AddInId>
+    <FullClassName>DrawingStudio.Bridge.BridgeApp</FullClassName>
+    <VendorId>DRAWINGSTUDIO</VendorId>
+    <VendorDescription>Drawing Studio - sheets, views and annotation to ISO 19650</VendorDescription>
+  </AddIn>
+</RevitAddIns>

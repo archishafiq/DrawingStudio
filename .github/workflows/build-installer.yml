@@ -1,0 +1,48 @@
+# Builds DrawingStudio-Setup-<version>.exe on GitHub's Windows machines.
+#  - Actions tab > "Build installer" > Run workflow  -> download the .exe from the run's Artifacts
+#  - push a tag such as v1.0.0                        -> the .exe is also attached to a GitHub Release
+name: Build installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version number
+        default: 1.0.0
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Build app, bridges and installer
+        shell: pwsh
+        run: |
+          $version = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME.TrimStart('v') } else { '${{ github.event.inputs.version }}' }
+          if (-not $version) { $version = '1.0.0' }
+          ./build-installer.ps1 -Version $version
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DrawingStudio-Setup
+          path: dist/*.exe
+
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: dist/*.exe
