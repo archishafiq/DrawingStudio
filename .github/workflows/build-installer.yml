@@ -44,4 +44,6 @@ jobs:
           target_commitish: ${{ github.sha }}
           files: dist/*.exe
           body: |
-            Close Revit, run the setup file, then start Revit and choose **Always Load** for Drawing Studio Bridge.
+            **DrawingStudio.exe** - standalone: just run it. It adds itself to every Revit 2022-2027 on the PC.
+            **DrawingStudio-Setup-*.exe** - installer for all Windows users (needs admin).
+            In Revit, choose **Always Load** for Drawing Studio Bridge the first time.

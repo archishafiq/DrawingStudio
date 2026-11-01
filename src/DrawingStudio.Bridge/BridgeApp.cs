@@ -85,6 +85,12 @@ namespace DrawingStudio.Bridge
     [Transaction(TransactionMode.ReadOnly)]
     public class LaunchStudioCommand : IExternalCommand
     {
+        private static string ReadAppPath()
+        {
+            try { return File.Exists(SessionPaths.AppPathFile) ? File.ReadAllText(SessionPaths.AppPathFile).Trim() : null; }
+            catch { return null; }
+        }
+
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             // Installed layout: <install>\Bridge\R20xx\DrawingStudio.Bridge.dll  and  <install>\App\DrawingStudio.exe
@@ -93,6 +99,7 @@ namespace DrawingStudio.Bridge
             {
                 Environment.GetEnvironmentVariable("DRAWINGSTUDIO_EXE"),
                 Path.GetFullPath(Path.Combine(bridgeDir, "..", "..", "App", "DrawingStudio.exe")),
+                ReadAppPath(),
                 SessionPaths.AppExe
             };
 
@@ -104,7 +111,7 @@ namespace DrawingStudio.Bridge
             {
                 TaskDialog.Show("Drawing Studio",
                     "The Drawing Studio app was not found next to the add-in:\n" + candidates[1] +
-                    "\n\nRun DrawingStudio-Setup.exe again to repair the installation.");
+                    "\n\nOpen DrawingStudio.exe once (or run DrawingStudio-Setup.exe) and try again.");
                 return Result.Cancelled;
             }
 

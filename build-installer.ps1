@@ -25,13 +25,6 @@ $sdks = (& dotnet --list-sdks) -join "`n"
 
 Remove-Item $build, $dist -Recurse -Force -ErrorAction SilentlyContinue
 
-# ------------------------------------------------------------ app (self-contained: no .NET install needed on user PCs)
-Write-Host "`n== Drawing Studio app" -ForegroundColor Cyan
-dotnet publish "$root\src\DrawingStudio.App\DrawingStudio.App.csproj" -c Release -r win-x64 `
-    --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
-    -p:Version=$Version -o "$build\App"
-if ($LASTEXITCODE -ne 0) { throw 'App build failed.' }
-
 # ------------------------------------------------------------ bridge, once per Revit version
 foreach ($v in $RevitVersions) {
     if ($v -ge 2027 -and $sdks -notmatch '(?m)^10\.') {
@@ -43,6 +36,25 @@ foreach ($v in $RevitVersions) {
         -p:RevitVersion=$v -p:Version=$Version -o "$build\Bridge\R$v"
     if ($LASTEXITCODE -ne 0) { throw "Bridge build for Revit $v failed." }
 }
+
+# ------------------------------------------------------------ bundle the bridges into the app
+$bundle = Join-Path $build 'bridges.zip'
+$stage  = Join-Path $build 'bundle'
+New-Item -ItemType Directory -Force -Path $stage | Out-Null
+Get-ChildItem "$build\Bridge" -Directory | ForEach-Object {
+    New-Item -ItemType Directory -Force -Path "$stage\$($_.Name)" | Out-Null
+    Copy-Item "$($_.FullName)\*.dll" "$stage\$($_.Name)\"
+}
+Compress-Archive -Path "$stage\*" -DestinationPath $bundle -Force
+
+# ------------------------------------------------------------ app (self-contained single exe: no .NET needed on user PCs)
+Write-Host "`n== Drawing Studio app" -ForegroundColor Cyan
+dotnet publish "$root\src\DrawingStudio.App\DrawingStudio.App.csproj" -c Release -r win-x64 `
+    --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+    -p:Version=$Version -p:BridgeBundle=$bundle -o "$build\App"
+if ($LASTEXITCODE -ne 0) { throw 'App build failed.' }
+New-Item -ItemType Directory -Force -Path $dist | Out-Null
+Copy-Item "$build\App\DrawingStudio.exe" "$dist\DrawingStudio.exe"
 
 # ------------------------------------------------------------ installer
 $iscc = @(
@@ -64,5 +76,5 @@ Write-Host "`n== Installer" -ForegroundColor Cyan
 & $iscc "/DAppVersion=$Version" "$root\installer\DrawingStudio.iss"
 if ($LASTEXITCODE -ne 0) { throw 'Installer build failed.' }
 
-$exe = Get-ChildItem $dist -Filter *.exe | Select-Object -First 1
-Write-Host "`nInstaller ready: $($exe.FullName)" -ForegroundColor Green
+Write-Host "`nReady in $dist :" -ForegroundColor Green
+Get-ChildItem $dist -Filter *.exe | ForEach-Object { Write-Host "  $($_.Name)" }

@@ -65,6 +65,9 @@ namespace DrawingStudio.Shared
 
         public static string AppExe => Path.Combine(Root, "App", "DrawingStudio.exe");
 
+        /// <summary>The standalone app writes its own location here so the Revit ribbon button can launch it.</summary>
+        public static string AppPathFile => Path.Combine(Root, "app-path.txt");
+
         public static string PipeNameFor(int processId) => "DrawingStudio.Bridge." + processId;
 
         public static string SessionFile(int processId) => Path.Combine(SessionsDir, processId + ".json");

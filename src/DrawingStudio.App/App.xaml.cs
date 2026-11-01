@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows;
+using DrawingStudio.App.Services;
 using DrawingStudio.App.ViewModels;
 
 namespace DrawingStudio.App
@@ -37,11 +38,47 @@ namespace DrawingStudio.App
                 if (string.Equals(e.Args[i], "--pid", StringComparison.OrdinalIgnoreCase) && int.TryParse(e.Args[i + 1], out var p))
                     pid = p;
 
+            // DrawingStudio.exe --remove-addin  : take the add-in out of Revit again
+            if (e.Args.Any(a => string.Equals(a, "--remove-addin", StringComparison.OrdinalIgnoreCase)))
+            {
+                int n = BridgeInstaller.Uninstall();
+                MessageBox.Show($"Drawing Studio was removed from {n} Revit version(s).", "Drawing Studio");
+                Shutdown();
+                return;
+            }
+
+            // First run (or after an update): put the add-in into every Revit on this PC.
+            BridgeInstaller.Outcome setup;
+            try { setup = BridgeInstaller.EnsureInstalled(); }
+            catch (Exception ex)
+            {
+                setup = new BridgeInstaller.Outcome();
+                setup.Messages.Add("Could not add Drawing Studio to Revit: " + ex.Message);
+            }
+
             var vm = new MainViewModel(pid);
             var window = new MainWindow { DataContext = vm };
             window.Closed += (_, __) => vm.Shutdown();
             MainWindow = window;
             window.Show();
+
+            foreach (var m in setup.Messages) vm.AddLog(m);
+            if (setup.Ready.Count > 0) vm.AddLog("Revit add-in ready for Revit " + string.Join(", ", setup.Ready) + ".");
+            if (setup.Added.Count > 0)
+            {
+                var versions = string.Join(", ", setup.Added);
+                vm.AddLog("Added Drawing Studio to Revit " + versions + ".");
+                MessageBox.Show(window,
+                    "Drawing Studio has been added to Revit " + versions + ".\n\n" +
+                    (setup.RevitRunning ? "Close and restart Revit to load it.\n\n" : "") +
+                    "When Revit asks about \"Drawing Studio Bridge\", click \"Always Load\".\n" +
+                    "This window connects to Revit automatically.",
+                    "Drawing Studio", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else if (setup.Ready.Count == 0 && setup.Messages.Count == 0)
+            {
+                vm.AddLog("No Revit 2022-2027 installation was found on this PC.");
+            }
         }
 
         protected override void OnExit(ExitEventArgs e)

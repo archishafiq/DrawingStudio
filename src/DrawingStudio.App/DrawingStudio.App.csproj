@@ -18,4 +18,9 @@
     <Compile Include="..\Shared\**\*.cs" Link="Shared\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
+  <!-- The Revit add-ins (one per Revit version) travel inside the exe; the app installs them on first run. -->
+  <ItemGroup Condition="'$(BridgeBundle)' != '' And Exists('$(BridgeBundle)')">
+    <EmbeddedResource Include="$(BridgeBundle)" LogicalName="bridges.zip" />
+  </ItemGroup>
+
 </Project>
