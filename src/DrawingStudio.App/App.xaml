@@ -229,8 +229,8 @@
                     <ControlTemplate TargetType="HeaderedContentControl">
                         <Border BorderBrush="{StaticResource RibbonLine}" BorderThickness="0,0,1,0" Padding="4,2,4,0">
                             <DockPanel>
-                                <TextBlock DockPanel.Dock="Bottom" Text="{TemplateBinding Header}" HorizontalAlignment="Center"
-                                           Foreground="{StaticResource Muted}" FontSize="11.5" Margin="0,2,0,2" />
+                                <ContentPresenter DockPanel.Dock="Bottom" ContentSource="Header" HorizontalAlignment="Center" Margin="0,2,0,2"
+                                                  TextElement.Foreground="{StaticResource Muted}" TextElement.FontSize="11.5" />
                                 <ContentPresenter />
                             </DockPanel>
                         </Border>
