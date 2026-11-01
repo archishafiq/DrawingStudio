@@ -191,17 +191,25 @@ namespace DrawingStudio.Bridge.Handlers
 
         public static bool ShowElements(HandlerContext ctx, ShowElementsRequest request)
         {
+            var ui = ctx.UiDoc;
+            var activeDoc = ctx.App.ActiveUIDocument?.Document;
+            if ((activeDoc == null || !activeDoc.Equals(ctx.Doc)) && !string.IsNullOrEmpty(ctx.Doc.PathName))
+            {
+                // the chosen model is open but not in front: bring it forward first
+                try { ui = ctx.App.OpenAndActivateDocument(ctx.Doc.PathName) ?? ui; } catch { /* stay on the model as it is */ }
+            }
+
             var ids = request.Ids.OrEmpty().Select(Ids.To).Where(id => ctx.Doc.GetElement(id) != null).ToList();
             if (ids.Count == 0) return false;
 
             if (ids.Count == 1 && ctx.Doc.GetElement(ids[0]) is View view && !view.IsTemplate)
             {
-                ctx.UiDoc.RequestViewChange(view);
+                ui.RequestViewChange(view);
                 return true;
             }
 
-            ctx.UiDoc.Selection.SetElementIds(ids);
-            ctx.UiDoc.ShowElements(ids);
+            ui.Selection.SetElementIds(ids);
+            ui.ShowElements(ids);
             return true;
         }
     }

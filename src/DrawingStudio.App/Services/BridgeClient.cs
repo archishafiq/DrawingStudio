@@ -26,6 +26,25 @@ namespace DrawingStudio.App.Services
 
         public bool IsConnected => _pipe != null && _pipe.IsConnected;
 
+        /// <summary>The open model every request works on (its path or title). Null = Revit's active model.</summary>
+        public string TargetDocument { get; set; }
+
+        /// <summary>
+        /// Lists the models open in another Revit session without disturbing the main connection.
+        /// Gives up after a few seconds if that Revit is busy.
+        /// </summary>
+        public static async Task<List<OpenModelInfo>> ListModelsAsync(string pipeName, int timeoutMs = 4000)
+        {
+            using (var probe = new BridgeClient())
+            {
+                await probe.ConnectAsync(pipeName, 1500);
+                var call = probe.SendAsync<List<OpenModelInfo>>(Commands.ListModels);
+                var done = await Task.WhenAny(call, Task.Delay(timeoutMs));
+                if (done != call) throw new TimeoutException("Revit is busy.");
+                return await call ?? new List<OpenModelInfo>();
+            }
+        }
+
         public async Task ConnectAsync(string pipeName, int timeoutMs = 3000)
         {
             Close();
@@ -56,7 +75,7 @@ namespace DrawingStudio.App.Services
         {
             if (!IsConnected) throw new BridgeException("Not connected to Revit.");
 
-            var request = new BridgeRequest { Id = Guid.NewGuid().ToString("N"), Command = command, Payload = payload };
+            var request = new BridgeRequest { Id = Guid.NewGuid().ToString("N"), Command = command, Document = TargetDocument, Payload = payload };
             await _gate.WaitAsync();
             try
             {

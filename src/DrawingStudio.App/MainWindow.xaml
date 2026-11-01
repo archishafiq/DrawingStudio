@@ -44,6 +44,16 @@
                                 </Button>
                             </StackPanel>
                         </HeaderedContentControl>
+                        <HeaderedContentControl Header="Open Models" Style="{StaticResource RibbonPanel}">
+                            <StackPanel Margin="4,6,4,0" Width="320">
+                                <ComboBox ItemsSource="{Binding OpenModels}" SelectedItem="{Binding SelectedModelChoice}" DisplayMemberPath="Display"
+                                          ToolTip="Every project open in every linked Revit. Pick one to work on it." />
+                                <DockPanel Margin="0,4,0,0">
+                                    <Button DockPanel.Dock="Left" Content="Refresh list" Command="{Binding RefreshModelsCommand}" Padding="10,3" />
+                                    <TextBlock Text="{Binding OpenModelsSummary}" Foreground="{StaticResource Muted}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                </DockPanel>
+                            </StackPanel>
+                        </HeaderedContentControl>
                         <HeaderedContentControl Header="View" Style="{StaticResource RibbonPanel}">
                             <StackPanel Orientation="Horizontal">
                                 <Button Style="{StaticResource RB}" Command="{Binding RenderPictureCommand}" ToolTip="Render the open view again in Revit">
@@ -330,6 +340,8 @@
                 <Border DockPanel.Dock="Top" Style="{StaticResource PaletteTitle}">
                     <TextBlock Text="{Binding Model.DocumentTitle, StringFormat='Project Browser - {0}', FallbackValue='Project Browser'}" TextTrimming="CharacterEllipsis" />
                 </Border>
+                <ComboBox DockPanel.Dock="Top" Margin="6,6,6,0" ItemsSource="{Binding OpenModels}" SelectedItem="{Binding SelectedModelChoice}" DisplayMemberPath="Display"
+                          ToolTip="Model shown in Drawing Studio" />
                 <TextBox DockPanel.Dock="Top" Margin="6" Text="{Binding BrowserFilter, UpdateSourceTrigger=PropertyChanged}" ToolTip="Search views and sheets" />
                 <TreeView x:Name="BrowserTreeView" ItemsSource="{Binding BrowserTree}" BorderThickness="0" SelectedItemChanged="BrowserTree_SelectedItemChanged"
                           VirtualizingPanel.IsVirtualizing="True">

@@ -23,6 +23,7 @@ namespace DrawingStudio.Shared
         public const string RenderView = "renderView";
         public const string Model3D = "model3d";
         public const string OpenModel = "openModel";
+        public const string ListModels = "listModels";
     }
 
     /// <summary>One line of JSON sent from the app to Revit.</summary>
@@ -30,6 +31,8 @@ namespace DrawingStudio.Shared
     {
         public string Id { get; set; }
         public string Command { get; set; }
+        /// <summary>Which open project to work on (its path, or title if unsaved). Empty = the active one.</summary>
+        public string Document { get; set; }
         /// <summary>Command-specific DTO, serialized as JSON.</summary>
         public string Payload { get; set; }
     }

@@ -77,6 +77,14 @@ itself is not needed to compile.
 - **Open in Revit** jumps Revit to the view you are looking at.
 - Pictures and the 3D model are cached in `DrawingStudio-Data`, so the last model can be browsed with Revit closed.
 
+## Several models open
+
+The **Open Models** list (Home tab, and above the Project Browser) shows every project open in every linked
+Revit, e.g. `Tower A.rvt · Revit 2024`, `Podium.rvt · Revit 2024`, `Site.rvt · Revit 2025`. Pick one and
+Drawing Studio switches to it — connecting to the other Revit if needed — and every tool, picture, 3D view and
+Apply works on that model even when it is not the one in front in Revit. **Open in Revit** brings it forward.
+The list refreshes by itself as models are opened and closed.
+
 ## Prepare first, apply later
 
 Nothing in the tabs changes Revit directly. Every button **adds a change** to the **Changes** tab, with a preview

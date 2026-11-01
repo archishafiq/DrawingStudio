@@ -383,4 +383,15 @@ namespace DrawingStudio.Shared
         public string Path { get; set; }
         public bool Detach { get; set; }
     }
+
+    /// <summary>A project open in a Revit session.</summary>
+    public class OpenModelInfo
+    {
+        /// <summary>Key used in BridgeRequest.Document: the file path, or the title for unsaved models.</summary>
+        public string Key { get; set; }
+        public string Title { get; set; }
+        public string Path { get; set; }
+        public bool IsActive { get; set; }
+        public bool IsWorkshared { get; set; }
+    }
 }

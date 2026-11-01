@@ -296,9 +296,11 @@ namespace DrawingStudio.App.ViewModels
             {
                 var title = await Send<OpenModelRequest, string>(Commands.OpenModel, new OpenModelRequest { Path = path, Detach = DetachOnOpen });
                 AddLog("Opened " + title + " in Revit.");
+                _client.TargetDocument = null; // the model just opened is now the active one
                 Model3DFile = null;
                 _renderedThisSession.Clear();
                 await RefreshModelAsync();
+                await RefreshOpenModelsAsync();
             });
         }
     }

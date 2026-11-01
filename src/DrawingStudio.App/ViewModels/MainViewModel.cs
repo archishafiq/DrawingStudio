@@ -33,6 +33,7 @@ namespace DrawingStudio.App.ViewModels
             InitPreviews();
             InitModelTab();
             InitLayout();
+            InitModels();
 
             RefreshSessionsCommand = new RelayCommand(_ => RefreshSessions());
             ConnectCommand = new AsyncCommand(_ => ConnectAsync(), () => SelectedSession != null && !IsBusy);
@@ -85,17 +86,22 @@ namespace DrawingStudio.App.ViewModels
                     catch { /* still no project open */ }
                     finally { IsBusy = false; CommandManager.InvalidateRequerySuggested(); }
                 }
+                else
+                {
+                    await TickModelListAsync(); // models opened or closed in any Revit
+                }
                 return;
             }
 
             RefreshSessions();
+            await TickModelListAsync(); // lets you pick a model even before connecting
             var target = Sessions.FirstOrDefault(s => s.ProcessId == _preferredPid)
                          ?? (Sessions.Count == 1 ? Sessions[0] : null);
             if (target == null || _autoTried.Contains(target.ProcessId)) return;
 
             _autoTried.Add(target.ProcessId); // one automatic attempt per Revit session; Connect button retries
             SelectedSession = target;
-            await ConnectAsync();
+            await ConnectAsync(); // the model that is active in that Revit
         }
 
         // ---------------------------------------------------------------- properties
@@ -168,9 +174,10 @@ namespace DrawingStudio.App.ViewModels
             }
         }
 
-        private async Task ConnectAsync()
+        private async Task ConnectAsync(bool keepTarget = false)
         {
             if (SelectedSession == null) return;
+            if (!keepTarget) _client.TargetDocument = null; // a plain connect follows Revit's active model
             IsBusy = true;
             Status = "Connecting to " + SelectedSession + "…";
             try
@@ -181,6 +188,7 @@ namespace DrawingStudio.App.ViewModels
                 AddLog("Connected to " + SelectedSession + ".");
                 IsBusy = false;
                 await RunAsync("Reading model", RefreshModelAsync);
+                await RefreshOpenModelsAsync();
             }
             catch (Exception ex)
             {
@@ -277,6 +285,14 @@ namespace DrawingStudio.App.ViewModels
             }
             catch (Exception ex)
             {
+                if (ex.Message.IndexOf("is no longer open", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    _client.TargetDocument = null;
+                    AddLog(ex.Message + " Showing the model that is active in Revit instead.");
+                    _ = RefreshOpenModelsAsync();
+                    Status = "The chosen model was closed in Revit.";
+                    return;
+                }
                 if (ex.Message.IndexOf("no project open", StringComparison.OrdinalIgnoreCase) >= 0 ||
                     ex.Message.IndexOf("only has a family", StringComparison.OrdinalIgnoreCase) >= 0)
                 {

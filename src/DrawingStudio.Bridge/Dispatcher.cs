@@ -27,7 +27,11 @@ namespace DrawingStudio.Bridge
                 }
             }
 
-            var uiDoc = ResolveProject(app, out var problem);
+            // Which projects are open here (works with none open, too).
+            if (request.Command == Commands.ListModels)
+                return BridgeResponse.Success(request.Id, Json.Serialize(ListModels(app)));
+
+            var uiDoc = ResolveProject(app, request.Document, out var problem);
             if (uiDoc == null)
                 return BridgeResponse.Fail(request.Id, problem);
 
@@ -47,10 +51,22 @@ namespace DrawingStudio.Bridge
         /// screen, or a family is in front, ActiveUIDocument is null or a family even though a
         /// project is open — then use the first open project instead.
         /// </summary>
-        private static UIDocument ResolveProject(UIApplication app, out string problem)
+        private static UIDocument ResolveProject(UIApplication app, string key, out string problem)
         {
             problem = null;
             var active = app.ActiveUIDocument;
+
+            // The app asked for a specific model (several can be open in one Revit).
+            if (!string.IsNullOrEmpty(key))
+            {
+                var wanted = Projects(app).FirstOrDefault(d => KeyOf(d) == key)
+                             ?? Projects(app).FirstOrDefault(d => string.Equals(d.Title, key, StringComparison.OrdinalIgnoreCase));
+                if (wanted != null)
+                    return active?.Document != null && active.Document.Equals(wanted) ? active : new UIDocument(wanted);
+                problem = $"The model '{System.IO.Path.GetFileName(key)}' is no longer open in Revit {app.Application.VersionNumber}. Pick another model.";
+                return null;
+            }
+
             if (active?.Document != null && !active.Document.IsFamilyDocument) return active;
 
             var project = app.Application.Documents.Cast<Document>()
@@ -63,6 +79,25 @@ namespace DrawingStudio.Bridge
                 : $"Revit {version} is linked but has no project open. Open your model in this Revit, or use Open Model in Drawing Studio. " +
                   "If the model is open in another Revit window, that Revit was started before Drawing Studio was added: close and reopen it.";
             return null;
+        }
+
+        private static IEnumerable<Document> Projects(UIApplication app) =>
+            app.Application.Documents.Cast<Document>().Where(d => !d.IsLinked && !d.IsFamilyDocument);
+
+        /// <summary>Stable key for a model: its file path, or its title if it has never been saved.</summary>
+        internal static string KeyOf(Document d) => string.IsNullOrEmpty(d.PathName) ? d.Title : d.PathName;
+
+        private static List<OpenModelInfo> ListModels(UIApplication app)
+        {
+            var active = app.ActiveUIDocument?.Document;
+            return Projects(app).Select(d => new OpenModelInfo
+            {
+                Key = KeyOf(d),
+                Title = d.Title,
+                Path = d.PathName,
+                IsActive = active != null && active.Equals(d),
+                IsWorkshared = d.IsWorkshared
+            }).ToList();
         }
 
         /// <summary>Runs one command and returns its JSON result, or null for an unknown command.</summary>
