@@ -405,7 +405,7 @@
                     <!-- nothing open -->
                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="{Binding CenterEmpty, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="Drawing Studio" FontSize="22" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                        <TextBlock Text="Open a view or sheet from the Project Browser, or pick a tool on the ribbon." Foreground="{StaticResource Muted}" Margin="0,6,0,14" />
+                        <TextBlock Text="{Binding EmptyHint}" Foreground="{StaticResource Muted}" Margin="0,6,0,14" TextWrapping="Wrap" MaxWidth="560" TextAlignment="Center" />
                         <Button Content="Open model…" Style="{StaticResource Primary}" Command="{Binding OpenModelCommand}" HorizontalAlignment="Center" Margin="0" />
                     </StackPanel>
 

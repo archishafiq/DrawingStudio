@@ -27,11 +27,9 @@ namespace DrawingStudio.Bridge
                 }
             }
 
-            var uiDoc = app.ActiveUIDocument;
+            var uiDoc = ResolveProject(app, out var problem);
             if (uiDoc == null)
-                return BridgeResponse.Fail(request.Id, "No Revit project is open. Open a project and try again.");
-            if (uiDoc.Document.IsFamilyDocument)
-                return BridgeResponse.Fail(request.Id, "The active document is a family. Switch to a project.");
+                return BridgeResponse.Fail(request.Id, problem);
 
             var ctx = new HandlerContext(app, uiDoc);
 
@@ -42,6 +40,29 @@ namespace DrawingStudio.Bridge
             return payload == null
                 ? BridgeResponse.Fail(request.Id, "Unknown command: " + request.Command)
                 : BridgeResponse.Success(request.Id, payload, ctx.Log);
+        }
+
+        /// <summary>
+        /// The project to work on. Normally the active document; but when Revit shows its Home
+        /// screen, or a family is in front, ActiveUIDocument is null or a family even though a
+        /// project is open — then use the first open project instead.
+        /// </summary>
+        private static UIDocument ResolveProject(UIApplication app, out string problem)
+        {
+            problem = null;
+            var active = app.ActiveUIDocument;
+            if (active?.Document != null && !active.Document.IsFamilyDocument) return active;
+
+            var project = app.Application.Documents.Cast<Document>()
+                .FirstOrDefault(d => !d.IsLinked && !d.IsFamilyDocument);
+            if (project != null) return new UIDocument(project);
+
+            var version = app.Application.VersionNumber;
+            problem = active?.Document?.IsFamilyDocument == true
+                ? $"Revit {version} only has a family open. Open a project (.rvt) in this Revit, or use Open Model in Drawing Studio."
+                : $"Revit {version} is linked but has no project open. Open your model in this Revit, or use Open Model in Drawing Studio. " +
+                  "If the model is open in another Revit window, that Revit was started before Drawing Studio was added: close and reopen it.";
+            return null;
         }
 
         /// <summary>Runs one command and returns its JSON result, or null for an unknown command.</summary>

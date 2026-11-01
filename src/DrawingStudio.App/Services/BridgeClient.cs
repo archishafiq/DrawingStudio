@@ -100,6 +100,30 @@ namespace DrawingStudio.App.Services
     /// <summary>Finds running Revit sessions that have the bridge loaded.</summary>
     public static class SessionLocator
     {
+        /// <summary>A running Revit that has no Drawing Studio link (it started before the add-in was added).</summary>
+        public sealed class Unlinked
+        {
+            public int ProcessId;
+            public string Title;
+        }
+
+        public static List<Unlinked> UnlinkedRevits(IEnumerable<SessionInfo> linked)
+        {
+            var linkedIds = new HashSet<int>(linked.Select(s => s.ProcessId));
+            var result = new List<Unlinked>();
+            foreach (var p in Process.GetProcessesByName("Revit"))
+            {
+                using (p)
+                {
+                    if (linkedIds.Contains(p.Id)) continue;
+                    string title = "";
+                    try { title = p.MainWindowTitle; } catch { /* access denied */ }
+                    result.Add(new Unlinked { ProcessId = p.Id, Title = string.IsNullOrWhiteSpace(title) ? "Revit" : title });
+                }
+            }
+            return result;
+        }
+
         public static List<SessionInfo> List()
         {
             var result = new List<SessionInfo>();

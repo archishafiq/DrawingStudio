@@ -63,6 +63,7 @@ namespace DrawingStudio.App.ViewModels
         private async Task AutoConnectTickAsync()
         {
             if (IsBusy) return;
+            if (IsConnected) WarnAboutUnlinkedRevits();
 
             if (IsConnected)
             {
@@ -141,6 +142,30 @@ namespace DrawingStudio.App.ViewModels
             foreach (var s in SessionLocator.List()) Sessions.Add(s);
             SelectedSession = Sessions.FirstOrDefault(s => s.ProcessId == keep) ?? Sessions.FirstOrDefault();
             if (Sessions.Count == 0 && !IsBusy) Status = "Waiting for Revit… start Revit and open a project.";
+            WarnAboutUnlinkedRevits();
+        }
+
+        private readonly HashSet<int> _warnedUnlinked = new HashSet<int>();
+        private string _emptyHint = DefaultEmptyHint;
+        private const string DefaultEmptyHint = "Open a view or sheet from the Project Browser, or pick a tool on the ribbon.";
+
+        /// <summary>Message in the empty view area; explains what to do when Revit has no project.</summary>
+        public string EmptyHint { get => _emptyHint; private set => Set(ref _emptyHint, value); }
+
+        /// <summary>
+        /// A Revit started before Drawing Studio added itself has no link. Say so once per window,
+        /// naming it by its title (which shows the open model), instead of failing silently.
+        /// </summary>
+        private void WarnAboutUnlinkedRevits()
+        {
+            List<SessionLocator.Unlinked> unlinked;
+            try { unlinked = SessionLocator.UnlinkedRevits(Sessions); } catch { return; }
+            foreach (var u in unlinked.Where(u => _warnedUnlinked.Add(u.ProcessId)))
+            {
+                AddLog($"“{u.Title}” (process {u.ProcessId}) is not linked: it was started before Drawing Studio was added. " +
+                       "Save, close and reopen that Revit to link it.");
+                EmptyHint = $"“{u.Title}” is not linked yet. Save, close and reopen that Revit, then it connects by itself.";
+            }
         }
 
         private async Task ConnectAsync()
@@ -171,11 +196,14 @@ namespace DrawingStudio.App.ViewModels
         }
 
         private bool _modelIsLive;
+        private string _lastLogged;
 
         private async Task RefreshModelAsync()
         {
             var model = await Send<ModelInfo>(Commands.ModelInfo);
             _modelIsLive = true;
+            _lastLogged = null;
+            EmptyHint = DefaultEmptyHint;
             ShowModel(model);
             DocumentTitle = model.DocumentTitle + "  ·  Revit " + model.RevitVersion;
             SaveSnapshot(model);
@@ -241,6 +269,15 @@ namespace DrawingStudio.App.ViewModels
             }
             catch (Exception ex)
             {
+                if (ex.Message.IndexOf("no project open", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    ex.Message.IndexOf("only has a family", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    EmptyHint = ex.Message;
+                    Status = "Connected, but there is no project open in this Revit.";
+                    if (_lastLogged != ex.Message) AddLog(ex.Message); // say it once, not on every retry
+                    _lastLogged = ex.Message;
+                    return;
+                }
                 AddLog("ERROR: " + ex.Message);
                 Status = ex.Message;
                 if (!_client.IsConnected)
