@@ -18,6 +18,8 @@ namespace DrawingStudio.Shared
         public const string RenumberSheets = "renumberSheets";
         public const string RenumberViewports = "renumberViewports";
         public const string ShowElements = "showElements";
+        public const string Batch = "batch";
+        public const string Selection = "selection";
     }
 
     /// <summary>One line of JSON sent from the app to Revit.</summary>

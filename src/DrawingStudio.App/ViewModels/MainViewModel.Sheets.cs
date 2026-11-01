@@ -62,12 +62,10 @@ namespace DrawingStudio.App.ViewModels
 
             GenerateSheetListCommand = new RelayCommand(_ => GenerateSheetList(), _ => Model != null);
             ClearSheetListCommand = new RelayCommand(_ => PlannedSheets.Clear());
-            CreateSheetsCommand = new AsyncCommand(_ => RunAsync("Creating sheets", CreateSheetsAsync),
-                () => CanRun() && PlannedSheets.Any(r => r.Include));
-            PlaceOnSheetCommand = new AsyncCommand(_ => RunAsync("Placing views", () => PlaceAsync(false)),
-                () => CanRun() && TargetSheet != null);
-            RelayoutSheetCommand = new AsyncCommand(_ => RunAsync("Arranging sheet", () => PlaceAsync(true)),
-                () => CanRun() && TargetSheet != null);
+            CreateSheetsCommand = new RelayCommand(_ => QueueSheets(),
+                _ => CanPrepare() && PlannedSheets.Any(r => r.Include));
+            PlaceOnSheetCommand = new RelayCommand(_ => QueuePlace(false), _ => CanPrepare() && TargetSheet != null);
+            RelayoutSheetCommand = new RelayCommand(_ => QueuePlace(true), _ => CanPrepare() && TargetSheet != null);
         }
 
         private void LoadSheetsTab(ModelInfo model)
@@ -99,6 +97,7 @@ namespace DrawingStudio.App.ViewModels
 
             var used = new HashSet<string>(Model.Sheets.OrEmpty().Select(s => s.Number), StringComparer.OrdinalIgnoreCase);
             foreach (var row in PlannedSheets) used.Add(row.Number ?? "");
+            foreach (var n in PendingSheetNumbers()) used.Add(n ?? "");
 
             if (OneSheetPerView)
             {
@@ -137,37 +136,49 @@ namespace DrawingStudio.App.ViewModels
             return Standards.Uppercase ? name.ToUpperInvariant() : name;
         }
 
-        private async Task CreateSheetsAsync()
+        private void QueueSheets()
         {
             var rows = PlannedSheets.Where(r => r.Include).ToList();
-            var result = await Send<CreateSheetsRequest, CreateResult>(Commands.CreateSheets, new CreateSheetsRequest
+            var dupes = rows.GroupBy(r => r.Number, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
+            if (dupes.Count > 0) { AddLog("Duplicate sheet numbers in the list: " + string.Join(", ", dupes)); return; }
+
+            var request = new CreateSheetsRequest
             {
                 TitleBlockId = TitleBlock?.Id ?? 0,
                 Sheets = rows.Select(r => new SheetPlan { Number = r.Number, Name = r.Name, ViewIds = r.ViewIds }).ToList(),
                 Parameters = Standards.TitleBlockValues(),
                 AutoPlace = AutoPlace,
                 Layout = Standards.ToLayout(RenumberDetails)
-            });
-            foreach (var c in result.Created.OrEmpty()) AddLog("  + " + c.Name);
+            };
+            var header = $"Title block: {TitleBlock?.ToString() ?? "<none>"}  ·  " +
+                         string.Join(", ", request.Parameters.Select(p => p.Name + " = " + p.Value)) +
+                         (AutoPlace ? "  ·  views placed automatically" : "");
 
-            var created = new HashSet<string>(result.Created.OrEmpty().Select(c => c.Name.Split(new[] { " - " }, 2, StringSplitOptions.None)[0]));
-            foreach (var r in rows.Where(r => created.Contains(r.Number)).ToList()) PlannedSheets.Remove(r);
-            await RefreshModelAsync();
+            Queue("Sheets", $"Create {rows.Count} sheet(s)",
+                Preview(rows.Select(r => $"{r.Number}  {r.Name}" + (AutoPlace && !string.IsNullOrEmpty(r.ViewsText) ? $"   ← {r.ViewsText}" : "")), header),
+                Commands.CreateSheets, request);
+
+            foreach (var r in rows) PlannedSheets.Remove(r);
         }
 
-        private async Task PlaceAsync(bool relayoutOnly)
+        private void QueuePlace(bool relayoutOnly)
         {
-            var viewIds = relayoutOnly ? new List<long>() : CheckedIds(SheetViews, v => v.Id);
-            if (!relayoutOnly && viewIds.Count == 0) { AddLog("Tick the views to place first."); return; }
+            var views = relayoutOnly ? new List<ViewInfo>() : SheetViews.Where(v => v.IsChecked).Select(v => v.Item).ToList();
+            if (!relayoutOnly && views.Count == 0) { AddLog("Tick the views to place first."); return; }
 
-            await Send<PlaceViewsRequest, CreateResult>(Commands.PlaceViews, new PlaceViewsRequest
+            var request = new PlaceViewsRequest
             {
                 SheetId = TargetSheet.Id,
-                ViewIds = viewIds,
+                ViewIds = views.Select(v => v.Id).ToList(),
                 Layout = Standards.ToLayout(RenumberDetails),
                 RelayoutExisting = true
-            });
-            await RefreshModelAsync();
+            };
+            if (relayoutOnly)
+                Queue("Layout", $"Re-arrange views on {TargetSheet.Number}", "Lay out every viewport inside the border, clear of the title strip.",
+                    Commands.PlaceViews, request);
+            else
+                Queue("Layout", $"Place {views.Count} view(s) on {TargetSheet.Number}", Preview(views.Select(v => v.Name), TargetSheet.ToString()),
+                    Commands.PlaceViews, request);
         }
 
         private static string Pretty(string viewType)

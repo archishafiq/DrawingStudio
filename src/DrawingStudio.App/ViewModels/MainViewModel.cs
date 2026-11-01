@@ -29,6 +29,7 @@ namespace DrawingStudio.App.ViewModels
             InitSheets();
             InitAnnotation();
             InitQa();
+            InitChanges();
 
             RefreshSessionsCommand = new RelayCommand(_ => RefreshSessions());
             ConnectCommand = new AsyncCommand(_ => ConnectAsync(), () => SelectedSession != null && !IsBusy);
@@ -39,6 +40,7 @@ namespace DrawingStudio.App.ViewModels
             CheckNoneCommand = new RelayCommand(p => CheckHelper.SetAll(p, false));
             ClearLogCommand = new RelayCommand(_ => Log.Clear());
 
+            LoadSnapshot();
             _preferredPid = revitProcessId;
             RefreshSessions();
             _ = AutoConnectTickAsync();
@@ -66,12 +68,12 @@ namespace DrawingStudio.App.ViewModels
                 {
                     _client.Close();
                     IsConnected = false;
-                    Model = null;
-                    DocumentTitle = "No model";
-                    AddLog("Revit session ended. Waiting for Revit…");
+                    _modelIsLive = false;
+                    if (Model != null) DocumentTitle = Model.DocumentTitle + "  ·  offline (changes can still be prepared)";
+                    AddLog("Revit session ended. You can keep preparing changes; they apply when Revit is back.");
                     RefreshSessions();
                 }
-                else if (Model == null)
+                else if (!_modelIsLive)
                 {
                     // Connected before a project was open: pick the model up once one is.
                     IsBusy = true;
@@ -126,6 +128,9 @@ namespace DrawingStudio.App.ViewModels
 
         private bool CanRun() => IsConnected && !IsBusy;
 
+        /// <summary>Preparing changes only needs model data (live or snapshot), not a live connection.</summary>
+        private bool CanPrepare() => Model != null && !IsBusy;
+
         private void RefreshSessions()
         {
             var keep = SelectedSession?.ProcessId;
@@ -162,20 +167,52 @@ namespace DrawingStudio.App.ViewModels
             }
         }
 
+        private bool _modelIsLive;
+
         private async Task RefreshModelAsync()
         {
             var model = await Send<ModelInfo>(Commands.ModelInfo);
-            Model = model;
+            _modelIsLive = true;
+            ShowModel(model);
             DocumentTitle = model.DocumentTitle + "  ·  Revit " + model.RevitVersion;
-            OnPropertyChanged(nameof(Model));
+            SaveSnapshot(model);
 
+            AddLog($"Model: {model.Levels.OrEmpty().Count} levels, {model.Grids.OrEmpty().Count} grids, " +
+                   $"{model.Views.OrEmpty().Count} views, {model.Sheets.OrEmpty().Count} sheets.");
+        }
+
+        private void ShowModel(ModelInfo model)
+        {
+            Model = model;
+            OnPropertyChanged(nameof(Model));
             LoadViewsTab(model);
             LoadSheetsTab(model);
             LoadAnnotationTab(model);
             LoadQaTab(model);
+            CommandManager.InvalidateRequerySuggested();
+        }
 
-            AddLog($"Model: {model.Levels.OrEmpty().Count} levels, {model.Grids.OrEmpty().Count} grids, " +
-                   $"{model.Views.OrEmpty().Count} views, {model.Sheets.OrEmpty().Count} sheets.");
+        // Last model read from Revit, so changes can be prepared while Revit is closed.
+        private static string SnapshotFile => System.IO.Path.Combine(PortablePaths.DataDir, "model-snapshot.json");
+
+        private void SaveSnapshot(ModelInfo model)
+        {
+            try { System.IO.File.WriteAllText(SnapshotFile, Json.Serialize(model)); } catch { /* not critical */ }
+        }
+
+        private void LoadSnapshot()
+        {
+            try
+            {
+                if (!System.IO.File.Exists(SnapshotFile)) return;
+                var model = Json.Deserialize<ModelInfo>(System.IO.File.ReadAllText(SnapshotFile));
+                if (model == null) return;
+                ShowModel(model);
+                var when = System.IO.File.GetLastWriteTime(SnapshotFile);
+                DocumentTitle = $"{model.DocumentTitle}  ·  offline snapshot from {when:dd MMM HH:mm}";
+                AddLog("Loaded the last model snapshot. Prepare changes now; apply them when Revit is connected.");
+            }
+            catch { /* ignore a bad snapshot */ }
         }
 
         // ---------------------------------------------------------------- plumbing

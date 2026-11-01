@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -54,8 +55,10 @@ namespace DrawingStudio.App.ViewModels
         {
             _planKind = PlanKinds[0];
             _sectionMode = SectionModes[0];
-            CreatePlansCommand = new AsyncCommand(_ => RunAsync("Creating plans", CreatePlansAsync), CanRun);
-            CreateSectionsCommand = new AsyncCommand(_ => RunAsync("Creating sections", CreateSectionsAsync), CanRun);
+            CreatePlansCommand = new RelayCommand(_ => QueuePlans(), _ => CanPrepare());
+            // Grid sections can be prepared offline; element sections read the Revit selection.
+            CreateSectionsCommand = new AsyncCommand(_ => RunAsync("Reading selection", QueueSectionsAsync),
+                () => CanPrepare() && (IsGridSectionMode || IsConnected));
         }
 
         private void LoadViewsTab(ModelInfo model)
@@ -83,31 +86,43 @@ namespace DrawingStudio.App.ViewModels
             SectionTemplate = SectionTemplates.FirstOrDefault(t => t.Id == keepSection) ?? NoTemplate;
         }
 
-        private async Task CreatePlansAsync()
+        private void QueuePlans()
         {
-            var levels = CheckedIds(Levels, l => l.Id);
+            var levels = Levels.Where(c => c.IsChecked).Select(c => c.Item).ToList();
             if (levels.Count == 0) { AddLog("Tick at least one level."); return; }
 
-            var result = await Send<CreatePlansRequest, CreateResult>(Commands.CreatePlans, new CreatePlansRequest
+            var request = new CreatePlansRequest
             {
-                LevelIds = levels,
+                LevelIds = levels.Select(l => l.Id).ToList(),
                 PlanKind = PlanKind.Key,
                 ViewTemplateId = PlanTemplate?.Id ?? 0,
                 Scale = Standards.PlanScale,
                 NameTemplate = Standards.PlanNameTemplate,
                 Role = Standards.Role,
                 Uppercase = Standards.Uppercase
-            });
-            foreach (var c in result.Created.OrEmpty()) AddLog("  + " + c.Name);
-            await RefreshModelAsync();
+            };
+
+            var names = levels.Select(l => Naming.Clean(Naming.Fill(Standards.PlanNameTemplate, new Dictionary<string, string>
+            {
+                ["Role"] = Standards.Role,
+                ["PlanKind"] = Naming.PlanKindLabel(PlanKind.Key),
+                ["LevelName"] = l.Name,
+                ["LevelCode"] = l.Code,
+                ["Scale"] = Naming.ScaleLabel(Standards.PlanScale)
+            }), Standards.Uppercase));
+
+            Queue("Plans", $"Create {levels.Count} {PlanKind.Label.ToLowerInvariant()}(s)",
+                Preview(names, $"Scale 1:{Standards.PlanScale}  ·  template: {PlanTemplate?.Name ?? "<None>"}"),
+                Commands.CreatePlans, request);
         }
 
-        private async Task CreateSectionsAsync()
+        private async Task QueueSectionsAsync()
         {
             var request = new CreateSectionsRequest
             {
                 Mode = SectionMode.Key,
-                GridIds = CheckedIds(Grids, g => g.Id),
+                GridIds = new List<long>(),
+                ElementIds = new List<long>(),
                 DepthMm = Standards.SectionDepthMm,
                 OffsetMm = Standards.SectionOffsetMm,
                 PaddingMm = Standards.SectionPaddingMm,
@@ -118,11 +133,34 @@ namespace DrawingStudio.App.ViewModels
                 Role = Standards.Role,
                 Uppercase = Standards.Uppercase
             };
-            if (IsGridSectionMode && request.GridIds.Count == 0) { AddLog("Tick at least one grid."); return; }
+            var header = $"Scale 1:{Standards.SectionScale}  ·  far clip {Standards.SectionDepthMm:0} mm  ·  template: {SectionTemplate?.Name ?? "<None>"}";
 
-            var result = await Send<CreateSectionsRequest, CreateResult>(Commands.CreateSections, request);
-            foreach (var c in result.Created.OrEmpty()) AddLog("  + " + c.Name);
-            await RefreshModelAsync();
+            if (IsGridSectionMode)
+            {
+                var grids = Grids.Where(g => g.IsChecked).Select(g => g.Item).ToList();
+                if (grids.Count == 0) { AddLog("Tick at least one grid."); return; }
+                request.GridIds = grids.Select(g => g.Id).ToList();
+
+                int index = 1;
+                var names = grids.Select(g => Naming.Clean(Naming.Fill(Standards.SectionNameTemplate, new Dictionary<string, string>
+                {
+                    ["Role"] = Standards.Role, ["Kind"] = "SECTION", ["Ref"] = g.Name, ["Category"] = "GRID",
+                    ["Index"] = (index++).ToString("00"), ["Scale"] = Naming.ScaleLabel(Standards.SectionScale)
+                }), Standards.Uppercase)).ToList();
+
+                Queue("Sections", $"Create {grids.Count} building section(s) along grids", Preview(names, header),
+                    Commands.CreateSections, request);
+                return;
+            }
+
+            // Element sections: capture what is selected in Revit right now, so the change is fixed.
+            var selected = await Send<List<CreatedItem>>(Commands.Selection);
+            if (selected == null || selected.Count == 0) { AddLog("Select beams, walls, columns or footings in Revit first, then click again."); return; }
+            request.ElementIds = selected.Select(e => e.Id).ToList();
+
+            var kind = SectionMode.Key == "ElementsCross" ? "cross" : "long";
+            Queue("Sections", $"Create {selected.Count} {kind} section(s) through selected elements",
+                Preview(selected.Select(e => e.Name), header), Commands.CreateSections, request);
         }
     }
 }

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -56,7 +57,7 @@ namespace DrawingStudio.App.ViewModels
             AnnotViewsView.Filter = o => string.IsNullOrWhiteSpace(AnnotViewFilter) ||
                                          ((Checkable<ViewInfo>)o).Label.IndexOf(AnnotViewFilter, StringComparison.OrdinalIgnoreCase) >= 0;
 
-            AnnotateCommand = new AsyncCommand(_ => RunAsync("Annotating", AnnotateAsync), CanRun);
+            AnnotateCommand = new RelayCommand(_ => QueueAnnotation(), _ => CanPrepare());
             CheckActiveViewCommand = new RelayCommand(_ =>
             {
                 foreach (var v in AnnotViews) v.IsChecked = v.Item.Id == Model?.ActiveViewId;
@@ -71,27 +72,35 @@ namespace DrawingStudio.App.ViewModels
                 AnnotViews.Add(new Checkable<ViewInfo>(v, v.Name, $"{Pretty(v.ViewType)}  ·  1:{v.Scale}", keep.Contains(v.Id)));
         }
 
-        private async Task AnnotateAsync()
+        private void QueueAnnotation()
         {
-            var views = CheckedIds(AnnotViews, v => v.Id);
+            var views = AnnotViews.Where(v => v.IsChecked).Select(v => v.Item).ToList();
             if (views.Count == 0) { AddLog("Tick the views to annotate."); return; }
 
-            var result = await Send<AnnotateRequest, AnnotateResult>(Commands.Annotate, new AnnotateRequest
+            var categories = TagCategories.Where(c => c.IsChecked).ToList();
+            var request = new AnnotateRequest
             {
-                ViewIds = views,
+                ViewIds = views.Select(v => v.Id).ToList(),
                 DimensionGrids = DimensionGrids,
                 OverallDimension = OverallDimension,
                 BothSides = BothSides,
                 GridBubblesBothEnds = GridBubbles,
                 TagElements = TagElements,
-                TagCategories = TagCategories.Where(c => c.IsChecked).Select(c => c.Item.Key).ToList(),
+                TagCategories = categories.Select(c => c.Item.Key).ToList(),
                 TagLeader = TagLeader,
                 SkipTagged = SkipTagged,
                 DimOffsetMm = Standards.DimOffsetMm,
                 DimGapMm = Standards.DimGapMm
-            });
-            if (result.TagFailures > 0)
-                AddLog($"{result.TagFailures} element(s) could not be tagged (see warnings above).");
+            };
+
+            var what = new List<string>();
+            if (DimensionGrids) what.Add("grid dimensions" + (OverallDimension ? " + overall" : "") + (BothSides ? ", both ends" : ""));
+            if (GridBubbles) what.Add("grid heads both ends");
+            if (TagElements && categories.Count > 0) what.Add("tags: " + string.Join(", ", categories.Select(c => c.Label.ToLowerInvariant())));
+            if (what.Count == 0) { AddLog("Choose at least one annotation option."); return; }
+
+            Queue("Annotation", $"Annotate {views.Count} view(s)", Preview(views.Select(v => v.Name), string.Join("  ·  ", what)),
+                Commands.Annotate, request);
         }
     }
 }

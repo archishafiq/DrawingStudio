@@ -79,6 +79,18 @@ namespace DrawingStudio.Bridge.Handlers
             };
         }
 
+        /// <summary>Elements currently selected in Revit, with a readable label each.</summary>
+        public static List<CreatedItem> Selection(HandlerContext ctx) =>
+            ctx.UiDoc.Selection.GetElementIds()
+                .Select(id => ctx.Doc.GetElement(id))
+                .Where(e => e != null && !(e is View))
+                .Select(e => new CreatedItem
+                {
+                    Id = Ids.Of(e.Id),
+                    Name = (e.Category?.Name ?? e.GetType().Name) + " " + RevitUtil.MarkOrId(e)
+                })
+                .ToList();
+
         public static bool ShowElements(HandlerContext ctx, ShowElementsRequest request)
         {
             var ids = request.Ids.OrEmpty().Select(Ids.To).Where(id => ctx.Doc.GetElement(id) != null).ToList();

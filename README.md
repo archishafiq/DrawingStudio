@@ -65,6 +65,17 @@ Build details: the bridge is one project built per version with `-p:RevitVersion
 Revit API references come from the `Nice3point.Revit.Api.*` NuGet packages, so Revit
 itself is not needed to compile.
 
+## Prepare first, apply later
+
+Nothing in the tabs changes Revit directly. Every button **adds a change** to the **Changes** tab, with a preview
+of exactly what it will create: view names, sheet numbers, old → new numbers, which views get which annotation.
+There you can untick, reorder or remove changes, then press **Apply to Revit**:
+
+- all ticked changes run in one Revit *transaction group*, so **one Ctrl+Z in Revit undoes the whole batch**;
+- *All or nothing* (on by default) rolls everything back if any change fails, and marks the failing one;
+- the change list is saved, so you can close the app and apply later;
+- if Revit is closed, the app opens the last model snapshot so you can keep preparing; changes apply once Revit is back.
+
 ## Tabs
 
 ### Plans & sections

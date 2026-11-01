@@ -28,13 +28,15 @@
                     <Button Content="⟳" ToolTip="Look for running Revit sessions" Margin="6,0,8,0" Padding="10,6"
                             Command="{Binding RefreshSessionsCommand}" />
                     <Button Content="Connect" Style="{StaticResource Primary}" Command="{Binding ConnectCommand}" />
-                    <Button Content="Reload model" Command="{Binding RefreshModelCommand}" Margin="0" />
+                    <Button Content="Reload model" Command="{Binding RefreshModelCommand}" />
+                    <Button Content="{Binding ApplyLabel}" Style="{StaticResource Primary}" Command="{Binding ApplyChangesCommand}" Margin="0"
+                            ToolTip="Send every ticked change on the Changes tab to Revit in one step (one Ctrl+Z undoes it)." />
                 </StackPanel>
             </DockPanel>
         </Border>
 
         <!-- ============================================================ tabs -->
-        <TabControl Grid.Row="1" Margin="16,12,16,8" Background="Transparent" BorderThickness="0,1,0,0" BorderBrush="{StaticResource Line}">
+        <TabControl Grid.Row="1" SelectedIndex="{Binding SelectedTab}" Margin="16,12,16,8" Background="Transparent" BorderThickness="0,1,0,0" BorderBrush="{StaticResource Line}">
 
             <!-- ======================================================== VIEWS -->
             <TabItem Header="Plans &amp; sections">
@@ -78,7 +80,7 @@
                                     <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Standards.PlanNameTemplate}"
                                              ToolTip="Tokens: {Role} {PlanKind} {LevelName} {LevelCode} {Scale}" />
                                 </Grid>
-                                <Button Content="Create plans" Style="{StaticResource Primary}" HorizontalAlignment="Left" Margin="0,12,0,0"
+                                <Button Content="Add plans to changes" Style="{StaticResource Primary}" HorizontalAlignment="Left" Margin="0,12,0,0"
                                         Command="{Binding CreatePlansCommand}" />
                             </StackPanel>
                         </Border>
@@ -134,7 +136,7 @@
                                              ToolTip="Tokens: {Role} {Kind} {Ref} {Category} {Index} {Scale}" />
                                 </Grid>
                                 <CheckBox Content="Flip looking direction" IsChecked="{Binding SectionFlip}" Margin="0,8,0,0" />
-                                <Button Content="Create sections" Style="{StaticResource Primary}" HorizontalAlignment="Left" Margin="0,12,0,0"
+                                <Button Content="Add sections to changes" Style="{StaticResource Primary}" HorizontalAlignment="Left" Margin="0,12,0,0"
                                         Command="{Binding CreateSectionsCommand}" />
                             </StackPanel>
                         </Border>
@@ -218,7 +220,7 @@
                                         <Run Text="{Binding Standards.CheckedBy, Mode=OneWay}" FontWeight="SemiBold" />
                                         <Run Text="  (edit on the Standards tab)" />
                                     </TextBlock>
-                                    <Button Content="Create sheets" Style="{StaticResource Primary}" HorizontalAlignment="Left"
+                                    <Button Content="Add sheets to changes" Style="{StaticResource Primary}" HorizontalAlignment="Left"
                                             Command="{Binding CreateSheetsCommand}" />
                                 </StackPanel>
 
@@ -249,8 +251,8 @@
                                     </Grid.ColumnDefinitions>
                                     <ComboBox ItemsSource="{Binding ExistingSheets}" SelectedItem="{Binding TargetSheet}" />
                                     <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0">
-                                        <Button Content="Place ticked views" Command="{Binding PlaceOnSheetCommand}" />
-                                        <Button Content="Re-arrange sheet" Command="{Binding RelayoutSheetCommand}" Margin="0" />
+                                        <Button Content="Add: place ticked views" Command="{Binding PlaceOnSheetCommand}" />
+                                        <Button Content="Add: re-arrange sheet" Command="{Binding RelayoutSheetCommand}" Margin="0" />
                                     </StackPanel>
                                 </Grid>
                             </StackPanel>
@@ -313,7 +315,7 @@
                                 </ItemsControl.ItemsPanel>
                             </ItemsControl>
 
-                            <Button Content="Annotate ticked views" Style="{StaticResource Primary}" HorizontalAlignment="Left" Margin="0,16,0,0"
+                            <Button Content="Add annotation to changes" Style="{StaticResource Primary}" HorizontalAlignment="Left" Margin="0,16,0,0"
                                     Command="{Binding AnnotateCommand}" />
                         </StackPanel>
                     </Border>
@@ -353,8 +355,8 @@
                                     </StackPanel>
                                 </StackPanel>
                                 <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0">
-                                    <Button Content="Renumber sheets" Command="{Binding RenumberSheetsCommand}" />
-                                    <Button Content="Renumber details from" Command="{Binding RenumberDetailsCommand}" Margin="0,0,6,0" />
+                                    <Button Content="Add: renumber sheets" Command="{Binding RenumberSheetsCommand}" />
+                                    <Button Content="Add: renumber details from" Command="{Binding RenumberDetailsCommand}" Margin="0,0,6,0" />
                                     <TextBox Width="40" Text="{Binding DetailStart}" VerticalContentAlignment="Center" />
                                 </StackPanel>
                                 <ListBox ItemsSource="{Binding RenumberSheets}" Style="{StaticResource CheckList}" />
@@ -381,6 +383,64 @@
                                     <DataGridTextColumn Header="Issue" Binding="{Binding Message}" Width="1.4*" />
                                 </DataGrid.Columns>
                             </DataGrid>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- ======================================================== CHANGES -->
+            <TabItem Header="{Binding ChangesTabHeader}">
+                <Grid Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="420" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Style="{StaticResource Card}">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top">
+                                <TextBlock Text="Prepared changes" Style="{StaticResource SectionTitle}" />
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Nothing below has touched Revit yet. Review, untick or reorder, then apply. Changes are kept if you close the app, and can be prepared while Revit is closed." />
+                            </StackPanel>
+                            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0">
+                                <Button Content="▲ Up" Command="{Binding MoveChangeUpCommand}" CommandParameter="{Binding SelectedChange}" />
+                                <Button Content="▼ Down" Command="{Binding MoveChangeDownCommand}" CommandParameter="{Binding SelectedChange}" />
+                                <Button Content="Remove" Command="{Binding RemoveChangeCommand}" CommandParameter="{Binding SelectedChange}" />
+                                <Button Content="Clear all" Command="{Binding ClearChangesCommand}" />
+                            </StackPanel>
+                            <DataGrid ItemsSource="{Binding Changes}" SelectedItem="{Binding SelectedChange}" AutoGenerateColumns="False"
+                                      CanUserAddRows="False" CanUserSortColumns="False" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                                      BorderBrush="{StaticResource Line}" HorizontalGridLinesBrush="{StaticResource Line}" RowHeight="30">
+                                <DataGrid.Columns>
+                                    <DataGridCheckBoxColumn Header="Apply" Binding="{Binding Included, UpdateSourceTrigger=PropertyChanged}" Width="52" />
+                                    <DataGridTextColumn Header="Type" Binding="{Binding Kind}" Width="95" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Change" Binding="{Binding Title}" Width="*" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Prepared" Binding="{Binding Created}" Width="95" IsReadOnly="True" Foreground="{StaticResource Muted}" />
+                                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="95" IsReadOnly="True" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </DockPanel>
+                    </Border>
+
+                    <Border Grid.Column="1" Style="{StaticResource Card}" Margin="0,0,0,12">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+                                <CheckBox Content="All or nothing (if one change fails, undo the whole batch)" IsChecked="{Binding AllOrNothing}" />
+                                <Button Content="{Binding ApplyLabel}" Style="{StaticResource Primary}" HorizontalAlignment="Left" Margin="0,10,0,0"
+                                        Command="{Binding ApplyChangesCommand}" />
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
+                                           Text="Applied as one step in Revit: a single Ctrl+Z there undoes the whole batch." />
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="Preview" Style="{StaticResource SectionTitle}" />
+                                <TextBlock Text="{Binding SelectedChange.Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding SelectedChange.Error}" Foreground="#B42318" TextWrapping="Wrap" Margin="0,6,0,0" />
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="420" Margin="0,8,0,0">
+                                    <TextBlock Text="{Binding SelectedChange.Summary}" TextWrapping="Wrap" FontFamily="Consolas" FontSize="12" />
+                                </ScrollViewer>
+                                <TextBlock Text="Select a change on the left to see exactly what it will create." Style="{StaticResource Hint}" Margin="0,10,0,0" />
+                            </StackPanel>
                         </DockPanel>
                     </Border>
                 </Grid>

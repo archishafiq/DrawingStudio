@@ -246,4 +246,47 @@ namespace DrawingStudio.Shared
     {
         public List<long> Ids { get; set; }
     }
+
+    // ---------------------------------------------------------------- batch apply
+
+    /// <summary>Several prepared changes applied in one Revit transaction group (one undo step).</summary>
+    public class BatchRequest
+    {
+        public List<BridgeRequest> Items { get; set; }
+        /// <summary>Roll back everything if any item fails.</summary>
+        public bool AllOrNothing { get; set; }
+    }
+
+    public class BatchItemResult
+    {
+        public string Id { get; set; }
+        public bool Ok { get; set; }
+        public string Error { get; set; }
+        public string Payload { get; set; }
+    }
+
+    public class BatchResult
+    {
+        public List<BatchItemResult> Items { get; set; }
+        public bool RolledBack { get; set; }
+    }
+
+    /// <summary>A change prepared in the app and waiting to be applied to Revit. Saved between sessions.</summary>
+    public class PendingChange
+    {
+        public string Id { get; set; }
+        public string Kind { get; set; }
+        public string Title { get; set; }
+        public string Summary { get; set; }
+        public string Command { get; set; }
+        public string Payload { get; set; }
+        public string Document { get; set; }
+        public bool Included { get; set; }
+        public string CreatedLocal { get; set; }
+    }
+
+    public class PendingChangeList
+    {
+        public List<PendingChange> Items { get; set; }
+    }
 }
