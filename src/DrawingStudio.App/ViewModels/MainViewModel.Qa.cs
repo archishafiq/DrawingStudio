@@ -75,6 +75,7 @@ namespace DrawingStudio.App.ViewModels
             foreach (var i in result.Issues.OrEmpty().OrderBy(i => order.TryGetValue(i.Severity, out var o) ? o : 3).ThenBy(i => i.Check))
                 Issues.Add(i);
 
+            OpenDoc("Issues", $"QA Issues ({Issues.Count})");
             QaSummary = Issues.Count == 0
                 ? "No issues found."
                 : $"{Issues.Count(i => i.Severity == "Error")} errors, {Issues.Count(i => i.Severity == "Warning")} warnings, " +

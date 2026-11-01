@@ -31,7 +31,7 @@ namespace DrawingStudio.App.ViewModels
         private void InitPreviews()
         {
             _previewTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(400) };
-            _previewTimer.Tick += (_, __) => UpdatePreviews();
+            _previewTimer.Tick += (_, __) => UpdatePreviewsSafe();
             _previewTimer.Start();
         }
 
@@ -39,28 +39,42 @@ namespace DrawingStudio.App.ViewModels
         {
             try
             {
-                switch (SelectedTab)
+                switch (ActiveTool)
                 {
-                    case 1:
+                    case "Plans":
+                    case "Sections":
                         PlansPreview = BuildPlans().PreviewText;
                         SectionsPreview = BuildSections().PreviewText;
                         PlanDiagram = Keep(PlanDiagram, BuildPlanDiagram());
                         LevelsDiagram = Keep(LevelsDiagram, BuildLevelsDiagram());
                         break;
-                    case 2:
+                    case "Sheets":
+                    case "Place":
                         SheetsPreview = PlannedSheets.Count == 0 ? "" : BuildSheets().PreviewText;
                         PlacePreview = TargetSheet == null ? "" : BuildPlace(false).PreviewText;
                         SheetDiagram = Keep(SheetDiagram, BuildSheetDiagram());
                         break;
-                    case 3:
+                    case "Annotate":
                         AnnotationPreview = BuildAnnotation().PreviewText;
                         break;
-                    case 4:
+                    case "Renumber":
                         RenumberPreview = BuildRenumberSheets().PreviewText;
                         DetailsPreview = BuildRenumberDetails().PreviewText;
                         break;
                 }
             }
+            finally
+            {
+                var td = ToolDiagram;
+                if (!ReferenceEquals(td, _lastToolDiagram)) { _lastToolDiagram = td; OnPropertyChanged(nameof(ToolDiagram)); }
+            }
+        }
+
+        private Diagram _lastToolDiagram;
+
+        private void UpdatePreviewsSafe()
+        {
+            try { UpdatePreviews(); }
             catch (Exception ex)
             {
                 // A preview must never break the app; show why it could not be built.

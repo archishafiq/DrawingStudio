@@ -74,7 +74,7 @@ namespace DrawingStudio.App.ViewModels
             {
                 if (Changes.Count > 0 && Confirm($"Remove all {Changes.Count} prepared change(s)?")) { Changes.Clear(); ChangesChanged(); }
             }, _ => Changes.Count > 0);
-            ReviewChangesCommand = new RelayCommand(_ => SelectedTab = ChangesTabIndex);
+            ReviewChangesCommand = new RelayCommand(_ => ActiveTool = "Changes");
 
             Changes.CollectionChanged += (_, __) => RaiseChangeCounts();
             LoadChanges();

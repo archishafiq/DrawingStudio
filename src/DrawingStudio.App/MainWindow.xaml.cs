@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using DrawingStudio.App.ViewModels;
 
 namespace DrawingStudio.App
 {
@@ -8,6 +9,26 @@ namespace DrawingStudio.App
         public MainWindow()
         {
             InitializeComponent();
+        }
+
+        private MainViewModel Vm => DataContext as MainViewModel;
+
+        // Blue "File" button opens its menu, like Revit's File tab.
+        private void FileButton_Click(object sender, RoutedEventArgs e)
+        {
+            var menu = FileButton.ContextMenu;
+            menu.DataContext = DataContext;
+            menu.PlacementTarget = FileButton;
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            menu.IsOpen = true;
+        }
+
+        private void Exit_Click(object sender, RoutedEventArgs e) => Close();
+
+        // Project Browser: clicking a view or sheet opens it as a tab.
+        private void BrowserTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+        {
+            if (e.NewValue is BrowserNode node && node.IsLeaf) Vm?.OpenBrowserNode(node);
         }
 
         // 3D viewer camera presets (Iso / Top / Front / Right)

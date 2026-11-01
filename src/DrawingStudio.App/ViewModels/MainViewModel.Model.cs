@@ -47,7 +47,7 @@ namespace DrawingStudio.App.ViewModels
         public ObservableCollection<BrowserItem> BrowserItems { get; } = new ObservableCollection<BrowserItem>();
         public ICollectionView BrowserView { get; private set; }
 
-        public string BrowserFilter { get => _browserFilter; set { if (Set(ref _browserFilter, value)) BrowserView?.Refresh(); } }
+        public string BrowserFilter { get => _browserFilter; set { if (Set(ref _browserFilter, value)) { BrowserView?.Refresh(); BuildBrowserTree(); } } }
         public ImageSource ViewImage { get => _viewImage; private set => Set(ref _viewImage, value); }
         public string ViewerStatus { get => _viewerStatus; private set => Set(ref _viewerStatus, value); }
         public string Model3DFile { get => _model3DFile; private set => Set(ref _model3DFile, value); }
@@ -126,6 +126,15 @@ namespace DrawingStudio.App.ViewModels
             _selectedBrowserItem = BrowserItems.FirstOrDefault(b => b.Id == keep);
             OnPropertyChanged(nameof(SelectedBrowserItem));
             if (_selectedBrowserItem != null) ShowCachedPicture(_selectedBrowserItem);
+
+            // keep open view tabs pointing at the fresh items; close tabs whose view is gone
+            foreach (var doc in Documents.Where(d => d.Kind == "Picture").ToList())
+            {
+                var fresh = BrowserItems.FirstOrDefault(b => b.Id == doc.Item?.Id);
+                if (fresh == null) CloseDoc(doc);
+                else { doc.Item = fresh; doc.Title = fresh.Name; }
+            }
+            BuildBrowserTree();
         }
 
         private static (string, int) GroupOf(string viewType)
@@ -255,7 +264,7 @@ namespace DrawingStudio.App.ViewModels
             try { File.Delete(res.FilePath); } catch { /* temp */ }
             Model3DFile = null;          // force a reload even if the path is the same
             Model3DFile = Model3DCache;
-            Show3D = true;
+            OpenDoc("3D", "3D Model");
             AddLog($"3D model from '{res.ViewName}': {res.Elements:N0} elements, {res.Triangles:N0} triangles" +
                    (res.Truncated ? " (trimmed: the model is very large)." : "."));
         }

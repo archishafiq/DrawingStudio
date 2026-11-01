@@ -32,6 +32,7 @@ namespace DrawingStudio.App.ViewModels
             InitChanges();
             InitPreviews();
             InitModelTab();
+            InitLayout();
 
             RefreshSessionsCommand = new RelayCommand(_ => RefreshSessions());
             ConnectCommand = new AsyncCommand(_ => ConnectAsync(), () => SelectedSession != null && !IsBusy);
@@ -199,6 +200,7 @@ namespace DrawingStudio.App.ViewModels
             LoadAnnotationTab(model);
             LoadQaTab(model);
             LoadModelTab(model);
+            BuildPropertyRows();
             CommandManager.InvalidateRequerySuggested();
         }
 
